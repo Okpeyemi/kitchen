@@ -66,8 +66,8 @@ export default function OnboardingScreen() {
                 animated: true,
             });
         } else {
-            // Navigate to main app
-            router.replace('/(tabs)');
+            // Navigate to auth welcome screen
+            router.replace('/(auth)/welcome');
         }
     };
 
