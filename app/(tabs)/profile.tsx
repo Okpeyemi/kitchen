@@ -9,7 +9,6 @@ import {
     ClockIcon,
     CreditCardIcon,
     GlobeAltIcon,
-    MapPinIcon,
     PencilSquareIcon,
     TrashIcon
 } from 'react-native-heroicons/outline';
@@ -18,7 +17,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 /* Mock Data for Menu */
 const MENU_ITEMS = [
     { id: 'language', label: 'Language', icon: GlobeAltIcon },
-    { id: 'location', label: 'Location', icon: MapPinIcon },
     { id: 'subscription', label: 'Subscription', icon: CreditCardIcon },
     { id: 'clear_cache', label: 'Clear cache', icon: TrashIcon },
     { id: 'clear_history', label: 'Clear history', icon: ClockIcon },
@@ -32,6 +30,8 @@ export default function ProfileScreen() {
         console.log('Menu/Action pressed:', id);
         if (id === 'logout') {
             router.replace('/(auth)/sign-in');
+        } else if (id === 'subscription') {
+            router.push('/(auth)/choose-plan');
         }
     };
 
