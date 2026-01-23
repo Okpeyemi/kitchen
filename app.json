@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "kitchen",
+    "name": "Kitchen",
     "slug": "kitchen",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -33,9 +33,9 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#f9f3e9",
           "dark": {
-            "backgroundColor": "#000000"
+            "backgroundColor": "#112a46"
           }
         }
       ]
