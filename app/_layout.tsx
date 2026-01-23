@@ -1,8 +1,10 @@
 import { Colors } from '@/constants/theme';
+import { AuthProvider, useAuth } from '@/ctx/AuthContext';
 import { Montserrat_400Regular, Montserrat_500Medium, Montserrat_700Bold } from '@expo-google-fonts/montserrat';
 import { Outfit_400Regular, Outfit_700Bold, useFonts } from '@expo-google-fonts/outfit';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -24,7 +26,13 @@ export const unstable_settings = {
   anchor: '(onboarding)',
 };
 
-export default function RootLayout() {
+
+// ... (imports remain the same)
+
+function RootLayoutNav() {
+  const { session, loading } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
   const [loaded, error] = useFonts({
     Outfit_400Regular,
     Outfit_700Bold,
@@ -43,8 +51,23 @@ export default function RootLayout() {
     }
   }, [loaded]);
 
-  if (!loaded) {
-    return null;
+  useEffect(() => {
+    if (loading) return;
+
+    const inAuthGroup = segments[0] === '(auth)' || segments[0] === '(onboarding)';
+    const inTabsGroup = segments[0] === '(tabs)';
+
+    if (!session && !inAuthGroup) {
+      // Redirect to sign-in if not authenticated and not already in auth/onboarding
+      router.replace('/(auth)/sign-in');
+    } else if (session && inAuthGroup) {
+      // Redirect to tabs if authenticated and trying to access auth screens
+      router.replace('/(tabs)');
+    }
+  }, [session, loading, segments, loaded]);
+
+  if (!loaded || loading) {
+    return null; // Or a loading spinner
   }
 
   return (
@@ -66,5 +89,18 @@ export default function RootLayout() {
       </Stack>
       <StatusBar style="dark" />
     </ThemeProvider>
+  );
+}
+
+
+const queryClient = new QueryClient();
+
+export default function RootLayout() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <RootLayoutNav />
+      </AuthProvider>
+    </QueryClientProvider>
   );
 }

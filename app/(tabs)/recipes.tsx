@@ -1,4 +1,6 @@
 import { Colors, Fonts } from '@/constants/theme';
+import { searchRecipes } from '@/lib/themealdb';
+import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -6,17 +8,7 @@ import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'r
 import { AdjustmentsHorizontalIcon, BellIcon, HeartIcon, MagnifyingGlassIcon } from 'react-native-heroicons/outline';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-/* Mock Data for Recipes */
-const RECIPES = [
-    { id: '1', title: 'Morning dumplings', image: require('@/assets/images/recipe-1.png') },
-    { id: '2', title: 'Grilled Lemon Chicken', image: require('@/assets/images/recipe-2.png') },
-    { id: '3', title: 'Avocado Toast', image: require('@/assets/images/cat-breakfast.png') }, // Using category icon as placeholder
-    { id: '4', title: 'Pancakes', image: require('@/assets/images/cat-breakfast.png') },
-    { id: '5', title: 'Pasta', image: require('@/assets/images/recipe-1.png') },
-    { id: '6', title: 'Steak', image: require('@/assets/images/recipe-2.png') },
-];
-
-const RecipeCard = ({ title, image }: { title: string, image: any }) => (
+const RecipeCard = ({ title, image }: { title: string, image: string }) => (
     <View style={styles.cardContainer}>
         <Image source={image} style={styles.cardImage} contentFit="cover" />
         <TouchableOpacity style={styles.likeButton}>
@@ -32,9 +24,12 @@ export default function RecipesScreen() {
     const router = useRouter();
     const [search, setSearch] = useState('');
 
-    const filteredRecipes = RECIPES.filter(recipe =>
-        recipe.title.toLowerCase().includes(search.toLowerCase())
-    );
+    const { data: recipes, isLoading } = useQuery({
+        queryKey: ['recipes', search],
+        queryFn: () => searchRecipes(search),
+    });
+
+    const filteredRecipes = recipes || [];
 
     return (
         <SafeAreaView style={styles.safeArea}>
@@ -67,11 +62,11 @@ export default function RecipesScreen() {
                 {/* Recipes Grid */}
                 <FlatList
                     data={filteredRecipes}
-                    keyExtractor={(item) => item.id}
+                    keyExtractor={(item) => item.idMeal || Math.random().toString()}
                     renderItem={({ item }) => (
                         <View style={styles.gridItem}>
-                            <TouchableOpacity onPress={() => router.push(`/recipe/${item.id}`)}>
-                                <RecipeCard title={item.title} image={item.image} />
+                            <TouchableOpacity onPress={() => router.push(`/recipe/${item.idMeal}`)}>
+                                <RecipeCard title={item.strMeal || 'Unknown Meal'} image={item.strMealThumb || ''} />
                             </TouchableOpacity>
                         </View>
                     )}

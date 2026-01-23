@@ -12,6 +12,7 @@ const UserColors = {
   text: '#112a46',
   accent: '#112a46',
   accentLight: '#112a4622',
+  primary: '#112a46', // Adding primary color (same as accent for now)
 };
 
 export const Colors = {
@@ -20,6 +21,7 @@ export const Colors = {
     background: UserColors.background,
     accent: UserColors.accent,
     accentLight: UserColors.accentLight,
+    primary: UserColors.primary,
     tint: tintColorLight,
     icon: '#687076',
     tabIconDefault: '#687076',
@@ -30,6 +32,7 @@ export const Colors = {
     background: UserColors.background,
     accent: UserColors.accent,
     accentLight: UserColors.accentLight,
+    primary: UserColors.primary,
     tint: tintColorDark,
     icon: '#9BA1A6',
     tabIconDefault: '#9BA1A6',

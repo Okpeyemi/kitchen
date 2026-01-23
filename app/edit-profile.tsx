@@ -1,15 +1,14 @@
 import { Input } from '@/components/ui/Input';
 import { Colors, Fonts } from '@/constants/theme';
+import { supabase } from '@/lib/supabase';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import {
     ArrowLeftIcon,
     CameraIcon,
-    CheckIcon,
-    EyeIcon,
-    EyeSlashIcon
+    CheckIcon
 } from 'react-native-heroicons/outline';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -17,17 +16,82 @@ export default function EditProfileScreen() {
     const router = useRouter();
 
     // State for form fields
-    const [name, setName] = useState('Charlotte king');
-    const [email, setEmail] = useState('@johnkinggraphics.gmail.com');
-    const [username, setUsername] = useState('@johnkinggraphics');
-    const [password, setPassword] = useState('password123'); // Dummy password
-    const [showPassword, setShowPassword] = useState(false);
+    const [name, setName] = useState('');
+    const [email, setEmail] = useState(''); // Read-only usually
+    const [username, setUsername] = useState('');
+    const [avatarUrl, setAvatarUrl] = useState('');
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
 
-    const handleSave = () => {
-        // Save profile logic
-        console.log('Save Profile:', { name, email, username, password });
-        router.back();
+    // Fetch Profile
+    useFocusEffect(
+        useCallback(() => {
+            getProfile();
+        }, [])
+    );
+
+    const getProfile = async () => {
+        try {
+            setLoading(true);
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            setEmail(user.email || '');
+
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', user.id)
+                .single();
+
+            if (data) {
+                setName(data.full_name || '');
+                setUsername(data.username || '');
+                setAvatarUrl(data.avatar_url || '');
+            }
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
     };
+
+    const handleSave = async () => {
+        try {
+            setSaving(true);
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) throw new Error('No user logged in');
+
+            const updates = {
+                id: user.id,
+                full_name: name,
+                username,
+                avatar_url: avatarUrl,
+                updated_at: new Date(),
+            };
+
+            const { error } = await supabase.from('profiles').upsert(updates);
+
+            if (error) {
+                throw error;
+            }
+
+            Alert.alert('Success', 'Profile updated successfully!');
+            router.back();
+        } catch (error: any) {
+            Alert.alert('Error', error.message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    if (loading) {
+        return (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <ActivityIndicator size="large" color={Colors.light.primary} />
+            </View>
+        );
+    }
 
     return (
         <SafeAreaView style={styles.safeArea}>
@@ -38,8 +102,12 @@ export default function EditProfileScreen() {
 
                 <Text style={styles.headerTitle}>Edit Profile</Text>
 
-                <TouchableOpacity onPress={handleSave} style={styles.iconButton}>
-                    <CheckIcon size={24} color="#22C55E" />
+                <TouchableOpacity onPress={handleSave} style={styles.iconButton} disabled={saving}>
+                    {saving ? (
+                        <ActivityIndicator size="small" color="#22C55E" />
+                    ) : (
+                        <CheckIcon size={24} color="#22C55E" />
+                    )}
                 </TouchableOpacity>
             </View>
 
@@ -48,7 +116,7 @@ export default function EditProfileScreen() {
                 <View style={styles.avatarSection}>
                     <View style={styles.avatarContainer}>
                         <Image
-                            source={require('@/assets/images/user-avatar.png')}
+                            source={avatarUrl ? { uri: avatarUrl } : require('@/assets/images/user-avatar.png')}
                             style={styles.avatar}
                             contentFit="cover"
                         />
@@ -69,9 +137,8 @@ export default function EditProfileScreen() {
                     <Input
                         label="E mail address" // Spaced as per design
                         value={email}
-                        onChangeText={setEmail}
-                        keyboardType="email-address"
-                        autoCapitalize="none"
+                        editable={false} // Email is usually not editable directly
+                        style={{ opacity: 0.5 }}
                     />
 
                     <Input
@@ -81,26 +148,6 @@ export default function EditProfileScreen() {
                         autoCapitalize="none"
                     />
 
-                    {/* Custom Input layout for Password with Toggle */}
-                    <View style={styles.passwordContainer}>
-                        <Input
-                            label="Password"
-                            value={password}
-                            onChangeText={setPassword}
-                            secureTextEntry={!showPassword}
-                            style={styles.passwordInput}
-                        />
-                        <TouchableOpacity
-                            style={styles.eyeIcon}
-                            onPress={() => setShowPassword(!showPassword)}
-                        >
-                            {showPassword ? (
-                                <EyeSlashIcon size={20} color="#9CA3AF" />
-                            ) : (
-                                <EyeIcon size={20} color="#9CA3AF" />
-                            )}
-                        </TouchableOpacity>
-                    </View>
                 </View>
 
             </ScrollView>
@@ -149,6 +196,7 @@ const styles = StyleSheet.create({
         width: 100,
         height: 100,
         borderRadius: 50,
+        backgroundColor: '#E5E7EB'
     },
     cameraIconContainer: {
         position: 'absolute',
@@ -165,18 +213,5 @@ const styles = StyleSheet.create({
     },
     form: {
         gap: 8,
-    },
-    passwordContainer: {
-        position: 'relative',
-    },
-    passwordInput: {
-        paddingRight: 40,
-    },
-    eyeIcon: {
-        position: 'absolute',
-        right: 16,
-        top: 40, // Adjust based on Input label height + spacing
-        height: 24, // Match icon size area
-        justifyContent: 'center',
     },
 });

@@ -1,43 +1,117 @@
 import { Colors, Fonts } from '@/constants/theme';
+import { supabase } from '@/lib/supabase';
+import { getRecipeById } from '@/lib/themealdb';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router'; // Use focus effect to refetch when screen is focused
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { AdjustmentsHorizontalIcon, BellIcon, MagnifyingGlassIcon } from 'react-native-heroicons/outline';
 import { HeartIcon as HeartSolid } from 'react-native-heroicons/solid';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-/* Mock Data for Recipes */
-const ALL_RECIPES = [
-    { id: '1', title: 'Morning dumplings', image: require('@/assets/images/recipe-1.png'), liked: true },
-    { id: '2', title: 'Grilled Lemon Chicken', image: require('@/assets/images/recipe-2.png'), liked: false },
-    { id: '3', title: 'Avocado Toast', image: require('@/assets/images/cat-breakfast.png'), liked: true },
-    { id: '4', title: 'Pancakes', image: require('@/assets/images/cat-breakfast.png'), liked: false },
-    { id: '5', title: 'Pasta', image: require('@/assets/images/recipe-1.png'), liked: true },
-    { id: '6', title: 'Steak', image: require('@/assets/images/recipe-2.png'), liked: false },
-];
-
-const RecipeCard = ({ title, image }: { title: string, image: any }) => (
+const RecipeCard = ({ item, onUnlike }: { item: any, onUnlike: () => void }) => (
     <View style={styles.cardContainer}>
-        <Image source={image} style={styles.cardImage} contentFit="cover" />
-        <TouchableOpacity style={styles.likeButton}>
+        <Image source={{ uri: item.displayImage }} style={styles.cardImage} contentFit="cover" />
+        <TouchableOpacity style={styles.likeButton} onPress={onUnlike}>
             <HeartSolid size={24} color="#FF6B6B" />
         </TouchableOpacity>
         <View style={styles.cardOverlay}>
-            <Text style={styles.cardTitle}>{title}</Text>
+            <Text style={styles.cardTitle} numberOfLines={2}>{item.displayTitle}</Text>
         </View>
     </View>
 );
 
 export default function LikesScreen() {
     const router = useRouter();
+    const queryClient = useQueryClient();
     const [search, setSearch] = useState('');
 
-    // Filter for only LIKED recipes
-    const likedRecipes = ALL_RECIPES.filter(recipe => recipe.liked);
+    const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 
-    const filteredRecipes = likedRecipes.filter(recipe =>
-        recipe.title.toLowerCase().includes(search.toLowerCase())
+    const { data: likedRecipes, isLoading, refetch } = useQuery({
+        queryKey: ['likedRecipes'],
+        queryFn: async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return [];
+
+            // 1. Get all liked recipe IDs
+            const { data: likes, error } = await supabase
+                .from('likes')
+                .select('recipe_id, is_external')
+                .eq('user_id', user.id);
+
+            if (error || !likes) return [];
+
+            // 2. Separate into internal and external
+            const internalIds = likes.filter(l => !l.is_external).map(l => l.recipe_id);
+            const externalIds = likes.filter(l => l.is_external).map(l => l.recipe_id);
+
+            // 3. Fetch details
+            let internalRecipes: any[] = [];
+            let externalRecipes: any[] = [];
+
+            if (internalIds.length > 0) {
+                const { data: internalData } = await supabase
+                    .from('user_recipes')
+                    .select('id, title, image_url')
+                    .in('id', internalIds);
+
+                if (internalData) {
+                    internalRecipes = internalData.map(r => ({
+                        id: r.id,
+                        displayTitle: r.title,
+                        displayImage: r.image_url,
+                        source: 'user'
+                    }));
+                }
+            }
+
+            if (externalIds.length > 0) {
+                // Fetch in parallel
+                const promises = externalIds.map(id => getRecipeById(id));
+                const results = await Promise.all(promises);
+                externalRecipes = results
+                    .filter(r => r !== null)
+                    .map(r => ({
+                        id: r.idMeal,
+                        displayTitle: r.strMeal,
+                        displayImage: r.strMealThumb,
+                        source: 'api'
+                    }));
+            }
+
+            return [...internalRecipes, ...externalRecipes];
+        }
+    });
+
+    // Refetch when screen comes into focus (e.g. after navigating back from detail)
+    useFocusEffect(
+        useCallback(() => {
+            refetch();
+        }, [refetch])
+    );
+
+    const handleUnlike = async (id: string) => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { error } = await supabase
+            .from('likes')
+            .delete()
+            .eq('user_id', user.id)
+            .eq('recipe_id', id);
+
+        if (!error) {
+            // Optimistically update or refetch
+            queryClient.setQueryData(['likedRecipes'], (old: any[]) => old.filter(r => r.id !== id));
+            // Also invalidate isLiked query for this specific recipe to update detail screen if open/cached
+            queryClient.invalidateQueries({ queryKey: ['isLiked', id] });
+        }
+    };
+
+    const filteredRecipes = (likedRecipes || []).filter(recipe =>
+        recipe.displayTitle.toLowerCase().includes(search.toLowerCase())
     );
 
     return (
@@ -69,26 +143,32 @@ export default function LikesScreen() {
                 </View>
 
                 {/* Recipes Grid */}
-                <FlatList
-                    data={filteredRecipes}
-                    keyExtractor={(item) => item.id}
-                    renderItem={({ item }) => (
-                        <View style={styles.gridItem}>
-                            <TouchableOpacity onPress={() => router.push(`/recipe/${item.id}`)}>
-                                <RecipeCard title={item.title} image={item.image} />
-                            </TouchableOpacity>
-                        </View>
-                    )}
-                    numColumns={2}
-                    contentContainerStyle={styles.listContent}
-                    columnWrapperStyle={styles.row}
-                    showsVerticalScrollIndicator={false}
-                    ListEmptyComponent={
-                        <View style={styles.emptyContainer}>
-                            <Text style={styles.emptyText}>No liked recipes found.</Text>
-                        </View>
-                    }
-                />
+                {isLoading ? (
+                    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                        <ActivityIndicator size="large" color={Colors.light.primary} />
+                    </View>
+                ) : (
+                    <FlatList
+                        data={filteredRecipes}
+                        keyExtractor={(item) => item.id}
+                        renderItem={({ item }) => (
+                            <View style={styles.gridItem}>
+                                <TouchableOpacity onPress={() => router.push(`/recipe/${item.id}`)}>
+                                    <RecipeCard item={item} onUnlike={() => handleUnlike(item.id)} />
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                        numColumns={2}
+                        contentContainerStyle={styles.listContent}
+                        columnWrapperStyle={styles.row}
+                        showsVerticalScrollIndicator={false}
+                        ListEmptyComponent={
+                            <View style={styles.emptyContainer}>
+                                <Text style={styles.emptyText}>No liked recipes found.</Text>
+                            </View>
+                        }
+                    />
+                )}
 
                 {/* Bottom spacer for floating tab bar */}
                 <View style={{ height: 80 }} />
@@ -202,6 +282,9 @@ const styles = StyleSheet.create({
         right: 10,
         justifyContent: 'center',
         alignItems: 'center',
+        backgroundColor: 'rgba(255,255,255,0.7)',
+        borderRadius: 12,
+        padding: 4
     },
     emptyContainer: {
         alignItems: 'center',

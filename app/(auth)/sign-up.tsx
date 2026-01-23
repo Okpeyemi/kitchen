@@ -3,9 +3,11 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { SocialButtons } from '@/components/ui/SocialButtons';
 import { Colors, Fonts } from '@/constants/theme';
+import { supabase } from '@/lib/supabase';
 import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { EyeIcon, EyeSlashIcon } from 'react-native-heroicons/outline';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SignUpScreen() {
@@ -13,11 +15,28 @@ export default function SignUpScreen() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-    const handleSignUp = () => {
-        // Add validation and sign up logic here
-        console.log('Sign Up:', { email, password, confirmPassword });
-        // router.replace('/(tabs)'); // Navigate to main app after success
+    const handleSignUp = async () => {
+        if (password !== confirmPassword) {
+            Alert.alert('Error', 'Passwords do not match');
+            return;
+        }
+
+        const { error } = await supabase.auth.signUp({
+            email,
+            password,
+            // options: { emailRedirectTo: null } // Explicitly request no link redirect if server supports? 
+            // Usually enabling OTP in dashboard is enough.
+        });
+
+        if (error) {
+            Alert.alert('Sign Up Error', error.message);
+        } else {
+            // Pass email to verification screen
+            router.push({ pathname: '/(auth)/verify-code', params: { email } });
+        }
     };
 
     const handleSocialLogin = (provider: string) => {
@@ -40,21 +59,47 @@ export default function SignUpScreen() {
                         autoCapitalize="none"
                     />
 
-                    <Input
-                        label="Create a password"
-                        placeholder="must be 8 characters"
-                        value={password}
-                        onChangeText={setPassword}
-                        secureTextEntry
-                    />
+                    <View>
+                        <Input
+                            label="Create a password"
+                            placeholder="must be 8 characters"
+                            value={password}
+                            onChangeText={setPassword}
+                            secureTextEntry={!showPassword}
+                            style={{ paddingRight: 40 }}
+                        />
+                        <TouchableOpacity
+                            onPress={() => setShowPassword(!showPassword)}
+                            style={styles.eyeIcon}
+                        >
+                            {showPassword ? (
+                                <EyeSlashIcon size={20} color="#9CA3AF" />
+                            ) : (
+                                <EyeIcon size={20} color="#9CA3AF" />
+                            )}
+                        </TouchableOpacity>
+                    </View>
 
-                    <Input
-                        label="Confirm password"
-                        placeholder="repeat password"
-                        value={confirmPassword}
-                        onChangeText={setConfirmPassword}
-                        secureTextEntry
-                    />
+                    <View>
+                        <Input
+                            label="Confirm password"
+                            placeholder="repeat password"
+                            value={confirmPassword}
+                            onChangeText={setConfirmPassword}
+                            secureTextEntry={!showConfirmPassword}
+                            style={{ paddingRight: 40 }}
+                        />
+                        <TouchableOpacity
+                            onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                            style={styles.eyeIcon}
+                        >
+                            {showConfirmPassword ? (
+                                <EyeSlashIcon size={20} color="#9CA3AF" />
+                            ) : (
+                                <EyeIcon size={20} color="#9CA3AF" />
+                            )}
+                        </TouchableOpacity>
+                    </View>
 
                     <Button
                         title="Sign Up"
@@ -134,5 +179,10 @@ const styles = StyleSheet.create({
         fontFamily: Fonts.bold,
         fontSize: 14,
         color: Colors.light.text,
+    },
+    eyeIcon: {
+        position: 'absolute',
+        right: 12,
+        top: 38, // Aligned with input text
     },
 });

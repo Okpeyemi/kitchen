@@ -24,11 +24,7 @@ export const TrendingRecipeCard = ({ title, author, image, authorImage, rating }
             <View style={styles.infoContainer}>
                 {/* Semi-transparent blur overlay effect simplified as dark view */}
                 <View style={styles.infoOverlay}>
-                    <Text style={styles.title} numberOfLines={1}>{title}</Text>
-                    <View style={styles.authorRow}>
-                        <Image source={authorImage} style={styles.authorImage} />
-                        <Text style={styles.authorName}>By {author}</Text>
-                    </View>
+                    <Text style={styles.title}>{title}</Text>
                 </View>
             </View>
         </View>
@@ -40,7 +36,6 @@ const styles = StyleSheet.create({
         width: 200,
         height: 260,
         borderRadius: 24,
-        marginRight: 20,
         overflow: 'hidden',
         backgroundColor: '#F3F4F6',
     },
@@ -60,7 +55,6 @@ const styles = StyleSheet.create({
         bottom: 0,
         left: 0,
         right: 0,
-        padding: 12,
     },
     infoOverlay: {
         backgroundColor: 'rgba(30, 30, 30, 0.8)', // Dark semi-transparent
@@ -71,21 +65,5 @@ const styles = StyleSheet.create({
         fontFamily: Fonts.medium,
         fontSize: 14,
         color: '#FFFFFF',
-        marginBottom: 8,
-    },
-    authorRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    authorImage: {
-        width: 20,
-        height: 20,
-        borderRadius: 10,
-    },
-    authorName: {
-        fontFamily: Fonts.regular,
-        fontSize: 10,
-        color: '#D1D5DB', // Light gray
     },
 });

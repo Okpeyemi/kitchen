@@ -2,46 +2,41 @@ import { CategoryItem } from '@/components/home/CategoryItem';
 import { TrendingRecipeCard } from '@/components/home/TrendingRecipeCard';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors, Fonts } from '@/constants/theme';
+import { getCategories, searchRecipes } from '@/lib/themealdb';
+import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { FlatList, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { BellIcon } from 'react-native-heroicons/outline';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-/* Mock Data */
-const CATEGORIES = [
-  { id: 'breakfast', name: 'Breakfast', icon: require('@/assets/images/cat-breakfast.png') },
-  { id: 'lunch', name: 'Lunch', icon: require('@/assets/images/cat-breakfast.png') }, // Reusing placeholder
-  { id: 'dinner', name: 'Dinner', icon: require('@/assets/images/cat-breakfast.png') },
-  { id: 'snack', name: 'Snack', icon: require('@/assets/images/cat-breakfast.png') },
-  { id: 'cuisine', name: 'Cuisine', icon: require('@/assets/images/cat-breakfast.png') },
-  { id: 'smoothies', name: 'Smoothies', icon: require('@/assets/images/cat-breakfast.png') },
-  { id: 'dessert', name: 'Dessert', icon: require('@/assets/images/cat-breakfast.png') },
-  { id: 'more', name: 'More', icon: require('@/assets/images/cat-breakfast.png') }, // Should be distinct in real app
-];
-
-const TRENDING_RECIPES = [
-  {
-    id: '1',
-    title: 'Morning dumplings',
-    author: 'Sanjeev Kapoor',
-    image: require('@/assets/images/recipe-1.png'),
-    authorImage: require('@/assets/images/user-avatar.png'),
-    rating: 5,
-  },
-  {
-    id: '2',
-    title: 'Grilled Lemon Chicken',
-    author: 'Gordon Ramsay',
-    image: require('@/assets/images/recipe-2.png'),
-    authorImage: require('@/assets/images/user-avatar.png'),
-    rating: 4,
-  },
-];
-
 export default function HomeScreen() {
+  const router = useRouter();
   const [search, setSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('more'); // 'More' is selected in the design
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  // Fetch Categories
+  const { data: categories, isLoading: isLoadingCategories } = useQuery({
+    queryKey: ['categories'],
+    queryFn: getCategories
+  });
+
+  // Fetch Trending (Random/Default)
+  const { data: trendingRecipes, isLoading: isLoadingTrending } = useQuery({
+    queryKey: ['trending'],
+    queryFn: () => searchRecipes('') // Empty search returns a variety of meals
+  });
+
+  const handleRecipePress = (id: string) => {
+    router.push(`/recipe/${id}`);
+  };
+
+  const handleSearchSubmit = () => {
+    if (search.trim()) {
+      router.push({ pathname: '/(tabs)/recipes', params: { search: search } });
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -55,7 +50,7 @@ export default function HomeScreen() {
               style={styles.avatar}
               contentFit="cover"
             />
-            <Text style={styles.userName}>Samantha</Text>
+            <Text style={styles.userName}>Hello, Chef!</Text>
           </View>
           <TouchableOpacity style={styles.notificationButton}>
             <BellIcon size={24} color={Colors.light.text} />
@@ -74,50 +69,62 @@ export default function HomeScreen() {
             placeholderTextColor="#9CA3AF"
             value={search}
             onChangeText={setSearch}
+            onSubmitEditing={handleSearchSubmit}
+            returnKeyType="search"
           />
         </View>
 
         {/* Categories Grid */}
         <View style={styles.categoriesContainer}>
+          {isLoadingCategories ? (
+            <ActivityIndicator size="small" color={Colors.light.primary} />
+          ) : (
+            <FlatList
+              data={categories?.slice(0, 8) || []} // Limit to 8 for grid
+              keyExtractor={(item) => item.idCategory}
+              renderItem={({ item }) => (
+                <TouchableOpacity onPress={() => setSelectedCategory(item.strCategory)}>
+                  <CategoryItem
+                    name={item.strCategory}
+                    icon={{ uri: item.strCategoryThumb }}
+                    isSelected={selectedCategory === item.strCategory}
+                  />
+                </TouchableOpacity>
+              )}
+              numColumns={4}
+              scrollEnabled={false}
+              columnWrapperStyle={styles.categoriesRow}
+            />
+          )}
+        </View>
+
+        {/* Trending / Random Recipe */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Trending Now</Text>
+        </View>
+
+        {isLoadingTrending ? (
+          <ActivityIndicator size="large" color={Colors.light.primary} />
+        ) : (
           <FlatList
-            data={CATEGORIES}
-            keyExtractor={(item) => item.id}
+            data={trendingRecipes || []}
+            keyExtractor={(item) => item.idMeal}
             renderItem={({ item }) => (
-              <TouchableOpacity onPress={() => setSelectedCategory(item.id)}>
-                <CategoryItem
-                  name={item.name}
-                  icon={item.icon}
-                  isSelected={selectedCategory === item.id}
+              <TouchableOpacity onPress={() => handleRecipePress(item.idMeal)}>
+                <TrendingRecipeCard
+                  title={item.strMeal}
+                  author={item.strArea} // Using Area as author/subtitle placeholder
+                  image={item.strMealThumb}
+                  authorImage={null}
+                  rating={4.5} // Mock rating
                 />
               </TouchableOpacity>
             )}
-            numColumns={4}
-            scrollEnabled={false} // Grid is fixed
-            columnWrapperStyle={styles.categoriesRow}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.recipesList}
           />
-        </View>
-
-        {/* Random Recipe */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Random Recipe</Text>
-        </View>
-
-        <FlatList
-          data={TRENDING_RECIPES}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <TrendingRecipeCard
-              title={item.title}
-              author={item.author}
-              image={item.image}
-              authorImage={item.authorImage}
-              rating={item.rating}
-            />
-          )}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.recipesList}
-        />
+        )}
 
         {/* Bottom spacer for floating tab bar */}
         <View style={{ height: 100 }} />
@@ -151,6 +158,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
+    backgroundColor: '#E5E7EB'
   },
   userName: {
     fontFamily: Fonts.medium,
@@ -196,6 +204,7 @@ const styles = StyleSheet.create({
   },
   categoriesRow: {
     justifyContent: 'space-between',
+    marginBottom: 16,
   },
   sectionHeader: {
     marginBottom: 16,
@@ -207,5 +216,6 @@ const styles = StyleSheet.create({
   },
   recipesList: {
     paddingRight: 24,
+    gap: 16,
   },
 });

@@ -1,15 +1,18 @@
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { Button } from '@/components/ui/Button';
 import { Colors, Fonts } from '@/constants/theme';
-import { useRouter } from 'expo-router';
+import { supabase } from '@/lib/supabase';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function VerifyCodeScreen() {
     const router = useRouter();
-    const [code, setCode] = useState(['', '', '', '']);
+    const { email } = useLocalSearchParams<{ email: string }>();
+    const [code, setCode] = useState(['', '', '', '', '', '']); // 6 digits hardcoded
     const inputRefs = useRef<Array<TextInput | null>>([]);
+    const [loading, setLoading] = useState(false);
 
     const handleCodeChange = (text: string, index: number) => {
         const newCode = [...code];
@@ -17,7 +20,7 @@ export default function VerifyCodeScreen() {
         setCode(newCode);
 
         // Auto-focus next input
-        if (text.length === 1 && index < 3) {
+        if (text.length === 1 && index < 5) {
             inputRefs.current[index + 1]?.focus();
         }
         // Auto-focus previous input if backspace
@@ -26,10 +29,49 @@ export default function VerifyCodeScreen() {
         }
     };
 
-    const handleVerify = () => {
+    const handleVerify = async () => {
         const fullCode = code.join('');
-        console.log('Verify Code:', fullCode);
-        router.push('/(auth)/reset-password');
+        if (fullCode.length !== 6) {
+            Alert.alert('Error', 'Please enter the full 6-digit code');
+            return;
+        }
+
+        if (!email) {
+            Alert.alert('Error', 'Email not found. Please restart sign up.');
+            return;
+        }
+
+        setLoading(true);
+
+        const { data, error } = await supabase.auth.verifyOtp({
+            email,
+            token: fullCode,
+            type: 'signup'
+        });
+
+        setLoading(false);
+
+        if (error) {
+            Alert.alert('Verification Error', error.message);
+        } else {
+            Alert.alert('Success', 'Account verified successfully!');
+            router.replace('/(tabs)'); // Go to main app
+        }
+    };
+
+    const handleResend = async () => {
+        if (!email) return;
+
+        const { error } = await supabase.auth.resend({
+            type: 'signup',
+            email: email
+        });
+
+        if (error) {
+            Alert.alert('Error', error.message);
+        } else {
+            Alert.alert('Code sent', 'Please check your email for a new code.');
+        }
     };
 
     return (
@@ -38,7 +80,7 @@ export default function VerifyCodeScreen() {
             <ScrollView contentContainerStyle={styles.container}>
                 <Text style={styles.title}>Please check your email</Text>
                 <Text style={styles.description}>
-                    We've sent a code to helloworld@gmail.com
+                    We've sent a code to {email || 'your email'}
                 </Text>
 
                 <View style={styles.codeContainer}>
@@ -58,15 +100,14 @@ export default function VerifyCodeScreen() {
                 </View>
 
                 <Button
-                    title="Verify"
+                    title={loading ? "Verifying..." : "Verify"}
                     onPress={handleVerify}
                     style={styles.button}
                 />
 
-                <View style={styles.resendContainer}>
+                <TouchableOpacity onPress={handleResend} style={styles.resendContainer}>
                     <Text style={styles.resendText}>Send code again </Text>
-                    <Text style={styles.timer}>00:20</Text>
-                </View>
+                </TouchableOpacity>
             </ScrollView>
         </SafeAreaView>
     );
@@ -98,15 +139,15 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         marginBottom: 32,
-        gap: 12,
+        gap: 8,
     },
     codeInput: {
         flex: 1,
-        height: 60,
+        height: 50,
         borderWidth: 1,
         borderColor: '#E5E7EB',
         borderRadius: 12,
-        fontSize: 24,
+        fontSize: 20,
         fontFamily: Fonts.bold,
         color: Colors.light.text,
         backgroundColor: '#FFFFFF',
@@ -121,11 +162,6 @@ const styles = StyleSheet.create({
     },
     resendText: {
         fontFamily: Fonts.regular,
-        fontSize: 14,
-        color: '#6B7280',
-    },
-    timer: {
-        fontFamily: Fonts.medium,
         fontSize: 14,
         color: '#6B7280',
     },

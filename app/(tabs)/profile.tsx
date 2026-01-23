@@ -1,7 +1,10 @@
 import { Colors, Fonts } from '@/constants/theme';
+import { supabase } from '@/lib/supabase';
+import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback } from 'react';
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import {
     ArrowLeftIcon,
     ArrowRightOnRectangleIcon,
@@ -14,7 +17,7 @@ import {
 } from 'react-native-heroicons/outline';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-/* Mock Data for Menu */
+/* Menu Items */
 const MENU_ITEMS = [
     { id: 'language', label: 'Language', icon: GlobeAltIcon },
     { id: 'subscription', label: 'Subscription', icon: CreditCardIcon },
@@ -26,12 +29,41 @@ const MENU_ITEMS = [
 export default function ProfileScreen() {
     const router = useRouter();
 
-    const handleMenuPress = (id: string) => {
-        console.log('Menu/Action pressed:', id);
+    const { data: profile, refetch } = useQuery({
+        queryKey: ['profile'],
+        queryFn: async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return null;
+
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', user.id)
+                .single();
+
+            if (error) return null;
+            return data;
+        }
+    });
+
+    useFocusEffect(
+        useCallback(() => {
+            refetch();
+        }, [refetch])
+    );
+
+    const handleMenuPress = async (id: string) => {
         if (id === 'logout') {
-            router.replace('/(auth)/sign-in');
+            const { error } = await supabase.auth.signOut();
+            if (error) {
+                Alert.alert('Error', error.message);
+            } else {
+                router.replace('/(auth)/sign-in'); // AuthProvider should handle this, but explicit is fine
+            }
         } else if (id === 'subscription') {
             router.push('/(auth)/choose-plan');
+        } else if (id === 'language') {
+            router.push('/(auth)/choose-language');
         }
     };
 
@@ -58,15 +90,14 @@ export default function ProfileScreen() {
                     <View style={styles.userInfo}>
                         <View style={styles.avatarContainer}>
                             <Image
-                                source={require('@/assets/images/user-avatar.png')}
+                                source={profile?.avatar_url ? { uri: profile.avatar_url } : require('@/assets/images/user-avatar.png')}
                                 style={styles.avatar}
                                 contentFit="cover"
                             />
-                            {/* Camera icon overlay could go here if needed, skipping for now based on strict image copy */}
                         </View>
                         <View style={styles.userDetails}>
-                            <Text style={styles.userName}>Charlotte King</Text>
-                            <Text style={styles.userHandle}>@johnkinggraphics</Text>
+                            <Text style={styles.userName}>{profile?.full_name || 'Chef'}</Text>
+                            <Text style={styles.userHandle}>{profile?.username ? `@${profile.username}` : '@chef'}</Text>
                         </View>
                         <TouchableOpacity style={styles.editButton}
                             onPress={() => router.push('/edit-profile')}
@@ -153,6 +184,7 @@ const styles = StyleSheet.create({
         width: 100,
         height: 100,
         borderRadius: 50,
+        backgroundColor: '#E5E7EB'
     },
     userDetails: {
         alignItems: 'center',
@@ -188,8 +220,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingVertical: 16,
-        // No border bottom in the new design style usually, but image looks clean. 
-        // Let's add varying background possibly? Design seems transparent.
     },
     menuItemLeft: {
         flexDirection: 'row',

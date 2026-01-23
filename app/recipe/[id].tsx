@@ -1,8 +1,11 @@
 import { Colors, Fonts } from '@/constants/theme';
+import { supabase } from '@/lib/supabase';
+import { getRecipeById } from '@/lib/themealdb';
+import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import {
     ArrowLeftIcon,
     ArrowUpTrayIcon,
@@ -12,43 +15,115 @@ import {
 import { HeartIcon as HeartSolid } from 'react-native-heroicons/solid';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-/* Mock Data for Ingredients */
-const INGREDIENTS = [
-    { id: '1', name: 'Rice', amount: '500gr', image: require('@/assets/images/cat-breakfast.png') }, // Placeholder
-    { id: '2', name: 'Onion', amount: '2', image: require('@/assets/images/cat-breakfast.png') },
-    { id: '3', name: 'Garlic', amount: '2', image: require('@/assets/images/cat-breakfast.png') },
-    { id: '4', name: 'Chili', amount: '3', image: require('@/assets/images/cat-breakfast.png') },
-    { id: '5', name: 'Chili', amount: '3', image: require('@/assets/images/cat-breakfast.png') },
-    { id: '6', name: 'Chili', amount: '3', image: require('@/assets/images/cat-breakfast.png') },
-    { id: '7', name: 'Chili', amount: '3', image: require('@/assets/images/cat-breakfast.png') },
-    { id: '8', name: 'Chili', amount: '3', image: require('@/assets/images/cat-breakfast.png') },
-    { id: '9', name: 'Chili', amount: '3', image: require('@/assets/images/cat-breakfast.png') },
-    { id: '10', name: 'Chili', amount: '3', image: require('@/assets/images/cat-breakfast.png') },
-    { id: '11', name: 'Chili', amount: '3', image: require('@/assets/images/cat-breakfast.png') },
-    { id: '12', name: 'Chili', amount: '3', image: require('@/assets/images/cat-breakfast.png') },
-    { id: '13', name: 'Chili', amount: '3', image: require('@/assets/images/cat-breakfast.png') },
-    { id: '14', name: 'Chili', amount: '3', image: require('@/assets/images/cat-breakfast.png') },
-    { id: '15', name: 'Chili', amount: '3', image: require('@/assets/images/cat-breakfast.png') },
-    { id: '16', name: 'Chili', amount: '3', image: require('@/assets/images/cat-breakfast.png') },
-    { id: '17', name: 'Chili', amount: '3', image: require('@/assets/images/cat-breakfast.png') },
-    { id: '18', name: 'Chili', amount: '3', image: require('@/assets/images/cat-breakfast.png') },
-    { id: '19', name: 'Chili', amount: '3', image: require('@/assets/images/cat-breakfast.png') },
-    { id: '20', name: 'Chili', amount: '3', image: require('@/assets/images/cat-breakfast.png') },
-];
-
 export default function RecipeDetailScreen() {
-    const { id } = useLocalSearchParams();
+    const { id } = useLocalSearchParams<{ id: string }>();
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<'Detail' | 'Ingredients' | 'Instruction'>('Ingredients');
     const [servings, setServings] = useState(2);
     const [isLiked, setIsLiked] = useState(false);
     const insets = useSafeAreaInsets();
 
-    // Mock recipe data based on ID (simplified for now)
-    const recipe = {
-        title: 'Indonesian Original Nasi Liwet',
-        image: require('@/assets/images/recipe-1.png'), // Placeholder
+    const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
+    // Check if recipe is already liked
+    useQuery({
+        queryKey: ['isLiked', id],
+        queryFn: async () => {
+            if (!id) return false;
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return false;
+
+            const { data, error } = await supabase
+                .from('likes')
+                .select('*')
+                .eq('user_id', user.id)
+                .eq('recipe_id', id)
+                .single();
+
+            if (data) setIsLiked(true);
+            return !!data;
+        },
+        enabled: !!id
+    });
+
+    const toggleLike = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            router.replace('/(auth)/sign-in'); // Redirect if not logged in
+            return;
+        }
+
+        if (isLiked) {
+            // Unlike
+            const { error } = await supabase
+                .from('likes')
+                .delete()
+                .eq('user_id', user.id)
+                .eq('recipe_id', id);
+
+            if (!error) setIsLiked(false);
+        } else {
+            // Like
+            const { error } = await supabase
+                .from('likes')
+                .insert({
+                    user_id: user.id,
+                    recipe_id: id,
+                    is_external: !isUUID(id as string)
+                });
+
+            if (!error) setIsLiked(true);
+        }
     };
+
+    // Fetch from TheMealDB or Supabase based on ID format
+    const { data: recipe, isLoading } = useQuery({
+        queryKey: ['recipe', id],
+        queryFn: async () => {
+            if (!id) return null;
+            if (isUUID(id)) {
+                // Fetch from Supabase
+                const { data, error } = await supabase
+                    .from('user_recipes')
+                    .select('*')
+                    .eq('id', id)
+                    .single();
+
+                if (error) throw error;
+                return { ...data, source: 'user' };
+            } else {
+                // Fetch from TheMealDB
+                const meal = await getRecipeById(id);
+                if (!meal) return null;
+                return { ...meal, source: 'api' };
+            }
+        }
+    });
+
+    if (isLoading || !recipe) {
+        return (
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+                <ActivityIndicator size="large" color={Colors.light.primary} />
+            </View>
+        );
+    }
+
+    // Helper to normalize data for display
+    const displayTitle = recipe.source === 'user' ? recipe.title : recipe.strMeal;
+    const displayImage = recipe.source === 'user' ? recipe.image_url : recipe.strMealThumb;
+    const displayInstructions = recipe.source === 'user' ? recipe.instruction : recipe.strInstructions;
+
+    // Normalize Ingredients
+    const displayIngredients = recipe.source === 'user'
+        ? (recipe.ingredients || [])
+        : Array.from({ length: 20 }, (_, i) => i + 1)
+            .map(i => ({
+                id: `ing-${i}`,
+                name: recipe[`strIngredient${i}`],
+                amount: recipe[`strMeasure${i}`],
+                image: recipe[`strIngredient${i}`] ? `https://www.themealdb.com/images/ingredients/${recipe[`strIngredient${i}`]}-Small.png` : null
+            }))
+            .filter((item: any) => item.name && item.name.trim() !== '');
 
     const renderContent = () => {
         if (activeTab === 'Ingredients') {
@@ -77,11 +152,11 @@ export default function RecipeDetailScreen() {
                         nestedScrollEnabled={true}
                         showsVerticalScrollIndicator={true}
                     >
-                        {INGREDIENTS.map((item) => (
-                            <View key={item.id} style={styles.ingredientItem}>
+                        {displayIngredients.map((item: any, index: number) => (
+                            <View key={item.id || index} style={styles.ingredientItem}>
                                 <View style={styles.ingredientLeft}>
                                     <View style={styles.ingredientImageContainer}>
-                                        <Image source={item.image} style={styles.ingredientImage} contentFit="contain" />
+                                        <Image source={{ uri: item.image || displayImage }} style={styles.ingredientImage} contentFit="contain" />
                                     </View>
                                     <Text style={styles.ingredientName}>{item.name}</Text>
                                 </View>
@@ -99,12 +174,9 @@ export default function RecipeDetailScreen() {
                     showsVerticalScrollIndicator={true}
                 >
                     <Text style={styles.bodyText}>
-                        Step 1: Wash the rice...{'\n\n'}
-                        Step 2: Chop ingredients...{'\n\n'}
-                        Step 3: Cook in rice cooker...{'\n\n'}
-                        Step 4: Wait for 20 minutes...{'\n\n'}
-                        Step 5: Serve hot!
+                        {displayInstructions}
                     </Text>
+                    <Text></Text>
                 </ScrollView>
             );
         } else {
@@ -115,9 +187,10 @@ export default function RecipeDetailScreen() {
                     showsVerticalScrollIndicator={true}
                 >
                     <Text style={styles.bodyText}>
-                        A delicious traditional Indonesian rice dish cooked with coconut milk, chicken broth and spices.
+                        {recipe.strArea ? ` Cuisine: ${recipe.strArea}` : ''}
+                        {recipe.strCategory ? `\n Category: ${recipe.strCategory}` : ''}
                         {'\n\n'}
-                        It is a typical dish from Solo, Central Java, Indonesia.
+                        An exquisite dish that pairs perfectly with the selected ingredients.
                     </Text>
                 </ScrollView>
             );
@@ -135,7 +208,7 @@ export default function RecipeDetailScreen() {
                 <View style={styles.headerRight}>
                     <TouchableOpacity
                         style={[styles.iconButton, styles.likeButton, isLiked && styles.likedButton]}
-                        onPress={() => setIsLiked(!isLiked)}
+                        onPress={toggleLike}
                     >
                         <HeartSolid size={20} color={isLiked ? "#FF6B6B" : Colors.light.text} />
                     </TouchableOpacity>
@@ -148,13 +221,13 @@ export default function RecipeDetailScreen() {
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 {/* Main Image Header */}
                 <View style={styles.imageHeader}>
-                    <Image source={recipe.image} style={styles.mainImage} contentFit="cover" />
+                    <Image source={{ uri: displayImage }} style={styles.mainImage} contentFit="cover" />
                 </View>
 
                 {/* Content Body */}
                 <View style={styles.contentBody}>
                     {/* Title */}
-                    <Text style={styles.title}>{recipe.title}</Text>
+                    <Text style={styles.title}>{displayTitle}</Text>
 
                     {/* Tabs */}
                     <View style={styles.tabsContainer}>
@@ -297,7 +370,7 @@ const styles = StyleSheet.create({
     },
     ingredientsList: {
         gap: 12,
-        maxHeight: 340,
+        maxHeight: 300,
     },
     ingredientItem: {
         flexDirection: 'row',
@@ -341,12 +414,13 @@ const styles = StyleSheet.create({
         borderRadius: 16,
     },
     scrollableTextContainer: {
-        maxHeight: 400,
+        maxHeight: 350,
     },
     bodyText: {
         fontFamily: Fonts.regular,
         fontSize: 14,
         color: '#6B7280',
+        paddingBottom: 20,
         lineHeight: 22,
     },
 });

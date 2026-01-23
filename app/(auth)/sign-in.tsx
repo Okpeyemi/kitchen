@@ -3,20 +3,30 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { SocialButtons } from '@/components/ui/SocialButtons';
 import { Colors, Fonts } from '@/constants/theme';
+import { supabase } from '@/lib/supabase';
 import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { EyeIcon, EyeSlashIcon } from 'react-native-heroicons/outline';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SignInScreen() {
     const router = useRouter();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
 
-    const handleSignIn = () => {
-        // Add sign in logic here
-        console.log('Sign In:', { email, password });
-        router.replace('/(tabs)');
+    const handleSignIn = async () => {
+        const { error } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+        });
+
+        if (error) {
+            Alert.alert('Sign In Error', error.message);
+        } else {
+            // Router listener in _layout.tsx will handle the redirect
+        }
     };
 
     const handleSocialLogin = (provider: string) => {
@@ -39,13 +49,26 @@ export default function SignInScreen() {
                         autoCapitalize="none"
                     />
 
-                    <Input
-                        label="Password"
-                        placeholder="••••••••"
-                        value={password}
-                        onChangeText={setPassword}
-                        secureTextEntry
-                    />
+                    <View>
+                        <Input
+                            label="Password"
+                            placeholder="••••••••"
+                            value={password}
+                            onChangeText={setPassword}
+                            secureTextEntry={!showPassword}
+                            style={{ paddingRight: 40 }}
+                        />
+                        <TouchableOpacity
+                            onPress={() => setShowPassword(!showPassword)}
+                            style={styles.eyeIcon}
+                        >
+                            {showPassword ? (
+                                <EyeSlashIcon size={20} color="#9CA3AF" />
+                            ) : (
+                                <EyeIcon size={20} color="#9CA3AF" />
+                            )}
+                        </TouchableOpacity>
+                    </View>
 
                     <View style={styles.forgotPasswordContainer}>
                         <Link href="/(auth)/forgot-password" asChild>
@@ -140,5 +163,10 @@ const styles = StyleSheet.create({
         fontFamily: Fonts.bold,
         fontSize: 14,
         color: Colors.light.text,
+    },
+    eyeIcon: {
+        position: 'absolute',
+        right: 12,
+        top: 38, // Aligned with input text
     },
 });
