@@ -1,98 +1,210 @@
+import { CategoryItem } from '@/components/home/CategoryItem';
+import { TrendingRecipeCard } from '@/components/home/TrendingRecipeCard';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { Colors, Fonts } from '@/constants/theme';
 import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { FlatList, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+/* Mock Data */
+const CATEGORIES = [
+  { id: 'breakfast', name: 'Breakfast', icon: require('@/assets/images/cat-breakfast.png') },
+  { id: 'lunch', name: 'Lunch', icon: require('@/assets/images/cat-breakfast.png') }, // Reusing placeholder
+  { id: 'dinner', name: 'Dinner', icon: require('@/assets/images/cat-breakfast.png') },
+  { id: 'snack', name: 'Snack', icon: require('@/assets/images/cat-breakfast.png') },
+  { id: 'cuisine', name: 'Cuisine', icon: require('@/assets/images/cat-breakfast.png') },
+  { id: 'smoothies', name: 'Smoothies', icon: require('@/assets/images/cat-breakfast.png') },
+  { id: 'dessert', name: 'Dessert', icon: require('@/assets/images/cat-breakfast.png') },
+  { id: 'more', name: 'More', icon: require('@/assets/images/cat-breakfast.png') }, // Should be distinct in real app
+];
+
+const TRENDING_RECIPES = [
+  {
+    id: '1',
+    title: 'Morning dumplings',
+    author: 'Sanjeev Kapoor',
+    image: require('@/assets/images/recipe-1.png'),
+    authorImage: require('@/assets/images/user-avatar.png'),
+    rating: 5,
+  },
+  {
+    id: '2',
+    title: 'Grilled Lemon Chicken',
+    author: 'Gordon Ramsay',
+    image: require('@/assets/images/recipe-2.png'),
+    authorImage: require('@/assets/images/user-avatar.png'),
+    rating: 4,
+  },
+];
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const [search, setSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('more'); // 'More' is selected in the design
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.userInfo}>
+            <Image
+              source={require('@/assets/images/user-avatar.png')}
+              style={styles.avatar}
+              contentFit="cover"
+            />
+            <Text style={styles.userName}>Samantha</Text>
+          </View>
+          <TouchableOpacity style={styles.notificationButton}>
+            <IconSymbol name="bell.fill" size={24} color={Colors.light.text} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Title */}
+        <Text style={styles.pageTitle}>What's cooking today?</Text>
+
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <IconSymbol name="magnifyingglass" size={20} color="#9CA3AF" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search here"
+            placeholderTextColor="#9CA3AF"
+            value={search}
+            onChangeText={setSearch}
+          />
+        </View>
+
+        {/* Categories Grid */}
+        <View style={styles.categoriesContainer}>
+          <FlatList
+            data={CATEGORIES}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <TouchableOpacity onPress={() => setSelectedCategory(item.id)}>
+                <CategoryItem
+                  name={item.name}
+                  icon={item.icon}
+                  isSelected={selectedCategory === item.id}
+                />
+              </TouchableOpacity>
+            )}
+            numColumns={4}
+            scrollEnabled={false} // Grid is fixed
+            columnWrapperStyle={styles.categoriesRow}
+          />
+        </View>
+
+        {/* Trending Recipe */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Trending Recipe</Text>
+        </View>
+
+        <FlatList
+          data={TRENDING_RECIPES}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <TrendingRecipeCard
+              title={item.title}
+              author={item.author}
+              image={item.image}
+              authorImage={item.authorImage}
+              rating={item.rating}
+            />
+          )}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.recipesList}
+        />
+
+        {/* Bottom spacer for floating tab bar */}
+        <View style={{ height: 100 }} />
+
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+    backgroundColor: Colors.light.background,
+  },
+  scrollContent: {
+    paddingHorizontal: 24,
+    paddingTop: 10,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  userInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  userName: {
+    fontFamily: Fonts.medium,
+    fontSize: 16,
+    color: Colors.light.text,
+  },
+  notificationButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  pageTitle: {
+    fontFamily: Fonts.title,
+    fontSize: 28,
+    color: Colors.light.text,
+    marginBottom: 24,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 50,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginBottom: 32,
+    gap: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontFamily: Fonts.regular,
+    fontSize: 16,
+    color: Colors.light.text,
+    height: '100%',
+  },
+  categoriesContainer: {
+    marginBottom: 32,
+  },
+  categoriesRow: {
+    justifyContent: 'space-between',
+  },
+  sectionHeader: {
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontFamily: Fonts.title,
+    fontSize: 20,
+    color: Colors.light.text,
+  },
+  recipesList: {
+    paddingRight: 24,
   },
 });

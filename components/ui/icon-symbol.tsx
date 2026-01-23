@@ -19,6 +19,13 @@ const MAPPING = {
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
   'chevron.left': 'chevron-left',
+  'heart.fill': 'favorite',
+  'plus': 'add',
+  'square.grid.2x2.fill': 'grid-view',
+  'person.fill': 'person',
+  'bell.fill': 'notifications',
+  'magnifyingglass': 'search',
+  'slider.horizontal.3': 'tune', // Filter icon placeholder
 } as IconMapping;
 
 /**
