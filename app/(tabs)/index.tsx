@@ -5,6 +5,7 @@ import { Colors, Fonts } from '@/constants/theme';
 import { Image } from 'expo-image';
 import { useState } from 'react';
 import { FlatList, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { BellIcon } from 'react-native-heroicons/outline';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 /* Mock Data */
@@ -57,7 +58,7 @@ export default function HomeScreen() {
             <Text style={styles.userName}>Samantha</Text>
           </View>
           <TouchableOpacity style={styles.notificationButton}>
-            <IconSymbol name="bell.fill" size={24} color={Colors.light.text} />
+            <BellIcon size={24} color={Colors.light.text} />
           </TouchableOpacity>
         </View>
 
@@ -96,9 +97,9 @@ export default function HomeScreen() {
           />
         </View>
 
-        {/* Trending Recipe */}
+        {/* Random Recipe */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Trending Recipe</Text>
+          <Text style={styles.sectionTitle}>Random Recipe</Text>
         </View>
 
         <FlatList

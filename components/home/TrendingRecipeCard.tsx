@@ -2,6 +2,7 @@ import { Fonts } from '@/constants/theme';
 import { FontAwesome } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { StyleSheet, Text, View } from 'react-native';
+import { HeartIcon } from 'react-native-heroicons/outline';
 
 interface TrendingRecipeCardProps {
     title: string;
@@ -17,7 +18,7 @@ export const TrendingRecipeCard = ({ title, author, image, authorImage, rating }
             <Image source={image} style={styles.image} contentFit="cover" />
 
             <View style={styles.favoriteButton}>
-                <FontAwesome name="heart" size={16} color="#FF6B6B" />
+                <HeartIcon size={24} color="#FF6B6B" />
             </View>
 
             <View style={styles.infoContainer}>
@@ -49,12 +50,8 @@ const styles = StyleSheet.create({
     },
     favoriteButton: {
         position: 'absolute',
-        top: 16,
-        right: 16,
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: '#FFFFFF',
+        top: 10,
+        right: 10,
         justifyContent: 'center',
         alignItems: 'center',
     },
