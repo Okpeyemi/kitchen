@@ -129,7 +129,7 @@ export default function RecipeDetailScreen() {
         if (activeTab === 'Ingredients') {
             return (
                 <View style={styles.ingredientsContainer}>
-                    <View style={styles.servingsHeader}>
+                    {/* <View style={styles.servingsHeader}>
                         <TouchableOpacity
                             onPress={() => setServings(Math.max(1, servings - 1))}
                             style={styles.servingsButton}
@@ -145,7 +145,7 @@ export default function RecipeDetailScreen() {
                         >
                             <PlusIcon size={20} color={Colors.light.text} />
                         </TouchableOpacity>
-                    </View>
+                    </View> */}
 
                     <ScrollView
                         style={styles.ingredientsList}
@@ -370,7 +370,7 @@ const styles = StyleSheet.create({
     },
     ingredientsList: {
         gap: 12,
-        maxHeight: 300,
+        maxHeight: 350,
     },
     ingredientItem: {
         flexDirection: 'row',
