@@ -44,12 +44,7 @@ export default function TabLayout() {
           title: 'Fridge',
         }}
       />
-      <MaterialTopTabs.Screen
-        name="create"
-        options={{
-          title: 'Create',
-        }}
-      />
+
       <MaterialTopTabs.Screen
         name="recipes"
         options={{

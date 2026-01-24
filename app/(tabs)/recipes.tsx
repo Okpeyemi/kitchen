@@ -7,7 +7,7 @@ import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { AdjustmentsHorizontalIcon, BellIcon, HeartIcon, MagnifyingGlassIcon } from 'react-native-heroicons/outline';
+import { AdjustmentsHorizontalIcon, HeartIcon, MagnifyingGlassIcon } from 'react-native-heroicons/outline';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type FilterType = 'category' | 'area' | 'ingredient';
@@ -87,7 +87,7 @@ export default function RecipesScreen() {
     return (
         <SafeAreaView style={styles.safeArea}>
             {/* Header */}
-            <CustomHeader title="Recipes" />
+            <CustomHeader title="Recipes" showPlusButton />
             <View style={styles.container}>
                 {/* Search & Filter */}
                 <View style={styles.searchRow}>

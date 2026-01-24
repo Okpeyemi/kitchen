@@ -8,7 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { CameraIcon, MinusCircleIcon, PlusCircleIcon } from 'react-native-heroicons/outline';
+import { ArrowLeftIcon, CameraIcon, MinusCircleIcon, PlusCircleIcon } from 'react-native-heroicons/outline';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type Ingredient = {
@@ -176,6 +176,9 @@ export default function CreateRecipeScreen() {
     return (
         <SafeAreaView style={styles.safeArea}>
             <View style={styles.header}>
+                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                    <ArrowLeftIcon size={24} color={Colors.light.text} />
+                </TouchableOpacity>
                 <Text style={styles.headerTitle}>{isFridgeMode ? 'Fill Your Fridge' : 'Create Recipe'}</Text>
             </View>
 
@@ -315,10 +318,17 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.light.background,
     },
     header: {
+        flexDirection: 'row',
+        alignItems: 'center',
         paddingHorizontal: 24,
         paddingVertical: 16,
         borderBottomWidth: 1,
         borderBottomColor: '#F3F4F6',
+        gap: 16,
+    },
+    backButton: {
+        padding: 4,
+        marginLeft: -4, // Optical alignment
     },
     headerTitle: {
         fontFamily: Fonts.title,

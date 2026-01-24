@@ -111,7 +111,8 @@ export default function FridgeScreen() {
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            <CustomHeader title="My Fridge" />
+            <CustomHeader title="My Fridge" showPlusButton />
+
 
             <ScrollView
                 contentContainerStyle={styles.container}
