@@ -1,7 +1,10 @@
 import { Input } from '@/components/ui/Input';
 import { Colors, Fonts } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
+import { decode } from 'base64-arraybuffer';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -17,11 +20,12 @@ export default function EditProfileScreen() {
 
     // State for form fields
     const [name, setName] = useState('');
-    const [email, setEmail] = useState(''); // Read-only usually
+    const [email, setEmail] = useState('');
     const [username, setUsername] = useState('');
     const [avatarUrl, setAvatarUrl] = useState('');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [uploading, setUploading] = useState(false);
 
     // Fetch Profile
     useFocusEffect(
@@ -38,7 +42,7 @@ export default function EditProfileScreen() {
 
             setEmail(user.email || '');
 
-            const { data, error } = await supabase
+            const { data } = await supabase
                 .from('profiles')
                 .select('*')
                 .eq('id', user.id)
@@ -72,9 +76,7 @@ export default function EditProfileScreen() {
 
             const { error } = await supabase.from('profiles').upsert(updates);
 
-            if (error) {
-                throw error;
-            }
+            if (error) throw error;
 
             Alert.alert('Success', 'Profile updated successfully!');
             router.back();
@@ -85,13 +87,65 @@ export default function EditProfileScreen() {
         }
     };
 
-    if (loading) {
-        return (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                <ActivityIndicator size="large" color={Colors.light.primary} />
-            </View>
-        );
-    }
+    const pickImage = async () => {
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.5,
+        });
+
+        if (!result.canceled) {
+            uploadAvatar(result.assets[0].uri);
+        }
+    };
+
+    const uploadAvatar = async (uri: string) => {
+        try {
+            setUploading(true);
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            // Read file as base64 (React Native compatible)
+            const base64 = await FileSystem.readAsStringAsync(uri, {
+                encoding: 'base64',
+            });
+
+            const fileExt = uri.split('.').pop()?.toLowerCase() || 'jpg';
+            const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+            const contentType = `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('avatars')
+                .upload(fileName, decode(base64), {
+                    contentType,
+                    upsert: true // Allow overwriting
+                });
+
+            if (uploadError) throw uploadError;
+
+            const { data } = supabase.storage
+                .from('avatars')
+                .getPublicUrl(fileName);
+
+            const publicUrl = data.publicUrl;
+            setAvatarUrl(publicUrl);
+
+            // Save avatar URL to database immediately
+            const { error: dbError } = await supabase
+                .from('profiles')
+                .update({ avatar_url: publicUrl, updated_at: new Date() })
+                .eq('id', user.id);
+
+            if (dbError) throw dbError;
+
+            Alert.alert('Success', 'Profile picture updated!');
+        } catch (error: any) {
+            Alert.alert('Error uploading image', error.message);
+        } finally {
+            setUploading(false);
+        }
+    };
 
     return (
         <SafeAreaView style={styles.safeArea}>
@@ -102,8 +156,8 @@ export default function EditProfileScreen() {
 
                 <Text style={styles.headerTitle}>Edit Profile</Text>
 
-                <TouchableOpacity onPress={handleSave} style={styles.iconButton} disabled={saving}>
-                    {saving ? (
+                <TouchableOpacity onPress={handleSave} style={styles.iconButton} disabled={saving || uploading}>
+                    {saving || uploading ? (
                         <ActivityIndicator size="small" color="#22C55E" />
                     ) : (
                         <CheckIcon size={24} color="#22C55E" />
@@ -114,7 +168,7 @@ export default function EditProfileScreen() {
             <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
                 {/* Avatar Section */}
                 <View style={styles.avatarSection}>
-                    <View style={styles.avatarContainer}>
+                    <TouchableOpacity onPress={pickImage} style={styles.avatarContainer}>
                         <Image
                             source={avatarUrl ? { uri: avatarUrl } : require('@/assets/images/user-avatar.png')}
                             style={styles.avatar}
@@ -123,7 +177,7 @@ export default function EditProfileScreen() {
                         <View style={styles.cameraIconContainer}>
                             <CameraIcon size={14} color="#FFFFFF" />
                         </View>
-                    </View>
+                    </TouchableOpacity>
                 </View>
 
                 {/* Form Fields */}

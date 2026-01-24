@@ -1,8 +1,9 @@
 import { CreateSelectionModal } from '@/components/create/CreateSelectionModal';
 import { Colors, Fonts } from '@/constants/theme';
+import { supabase } from '@/lib/supabase';
 import { Image } from 'expo-image';
-import { usePathname, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useFocusEffect, usePathname, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native';
 import { BellIcon, PencilSquareIcon, PlusIcon } from 'react-native-heroicons/outline';
 
@@ -17,8 +18,43 @@ type CustomHeaderProps = {
 
 export function CustomHeader({ variant = 'standard', title, style, showPlusButton = false }: CustomHeaderProps) {
     const router = useRouter();
-    const pathname = usePathname(); // Get current path to determine logic
+    const pathname = usePathname();
     const [modalVisible, setModalVisible] = useState(false);
+
+    // User Profile State for 'home' variant
+    const [userName, setUserName] = useState('Chef');
+    const [userAvatar, setUserAvatar] = useState<string | null>(null);
+
+    // Fetch profile when home variant is displayed
+    useFocusEffect(
+        useCallback(() => {
+            if (variant === 'home') {
+                fetchProfile();
+            }
+        }, [variant])
+    );
+
+    const fetchProfile = async () => {
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            const { data } = await supabase
+                .from('profiles')
+                .select('full_name, avatar_url')
+                .eq('id', user.id)
+                .single();
+
+            if (data) {
+                const name = data.full_name ? data.full_name.split(' ')[0] : 'Chef';
+                setUserName(name);
+                setUserAvatar(data.avatar_url || null);
+            }
+        } catch (e) {
+            console.error('Error fetching profile:', e);
+        }
+    };
+
 
     const handlePlusPress = () => {
         // Logic based on requirements:
@@ -64,11 +100,11 @@ export function CustomHeader({ variant = 'standard', title, style, showPlusButto
                 <View style={[styles.header, style]}>
                     <View style={styles.userInfo}>
                         <Image
-                            source={require('@/assets/images/user-avatar.png')}
+                            source={userAvatar ? { uri: userAvatar } : require('@/assets/images/user-avatar.png')}
                             style={styles.avatar}
                             contentFit="cover"
                         />
-                        <Text style={styles.userName}>Hello, Chef!</Text>
+                        <Text style={styles.userName}>Hello, Chef {userName}!</Text>
                     </View>
                     <View style={styles.rightActions}>
                         <TouchableOpacity style={styles.notificationButton}>
