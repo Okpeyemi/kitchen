@@ -1,5 +1,6 @@
+import { FilterModal } from '@/components/recipes/FilterModal';
 import { Colors, Fonts } from '@/constants/theme';
-import { searchRecipes } from '@/lib/themealdb';
+import { filterByArea, filterByCategory, filterByIngredient, MealPreview, searchMealsByName } from '@/lib/themealdb';
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
@@ -7,6 +8,9 @@ import { useState } from 'react';
 import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { AdjustmentsHorizontalIcon, BellIcon, HeartIcon, MagnifyingGlassIcon } from 'react-native-heroicons/outline';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+type FilterType = 'category' | 'area' | 'ingredient';
+type ActiveFilter = { type: FilterType; value: string } | null;
 
 const RecipeCard = ({ title, image }: { title: string, image: string }) => (
     <View style={styles.cardContainer}>
@@ -23,13 +27,42 @@ const RecipeCard = ({ title, image }: { title: string, image: string }) => (
 export default function RecipesScreen() {
     const router = useRouter();
     const [search, setSearch] = useState('');
+    const [filterModalVisible, setFilterModalVisible] = useState(false);
+    const [activeFilter, setActiveFilter] = useState<ActiveFilter>(null);
 
-    const { data: recipes, isLoading } = useQuery({
+    // Search query
+    const { data: searchResults, isLoading: isSearching } = useQuery({
         queryKey: ['recipes', search],
-        queryFn: () => searchRecipes(search),
+        queryFn: () => searchMealsByName(search),
+        enabled: !activeFilter || search.length > 0, // Disable if filter is active without search
     });
 
-    const filteredRecipes = recipes || [];
+    // Filter query
+    const { data: filteredResults, isLoading: isFiltering } = useQuery({
+        queryKey: ['filteredRecipes', activeFilter?.type, activeFilter?.value],
+        queryFn: async (): Promise<MealPreview[]> => {
+            if (!activeFilter) return [];
+            switch (activeFilter.type) {
+                case 'category':
+                    return filterByCategory(activeFilter.value);
+                case 'area':
+                    return filterByArea(activeFilter.value);
+                case 'ingredient':
+                    return filterByIngredient(activeFilter.value);
+                default:
+                    return [];
+            }
+        },
+        enabled: !!activeFilter && search.length === 0,
+    });
+
+    // Determine which recipes to display
+    const recipes = search.length > 0 ? searchResults : activeFilter ? filteredResults : searchResults;
+    const isLoading = search.length > 0 ? isSearching : activeFilter ? isFiltering : isSearching;
+
+    const handleApplyFilter = (filter: ActiveFilter) => {
+        setActiveFilter(filter);
+    };
 
     return (
         <SafeAreaView style={styles.safeArea}>
@@ -54,14 +87,29 @@ export default function RecipesScreen() {
                             onChangeText={setSearch}
                         />
                     </View>
-                    <TouchableOpacity style={styles.filterButton}>
+                    <TouchableOpacity
+                        style={[styles.filterButton, activeFilter && styles.filterButtonActive]}
+                        onPress={() => setFilterModalVisible(true)}
+                    >
                         <AdjustmentsHorizontalIcon size={24} color="#FFFFFF" />
                     </TouchableOpacity>
                 </View>
 
+                {/* Active Filter Indicator */}
+                {activeFilter && (
+                    <View style={styles.activeFilterRow}>
+                        <Text style={styles.activeFilterText}>
+                            Filtered by {activeFilter.type}: <Text style={styles.activeFilterValue}>{activeFilter.value}</Text>
+                        </Text>
+                        <TouchableOpacity onPress={() => setActiveFilter(null)}>
+                            <Text style={styles.clearFilterText}>Clear</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
+
                 {/* Recipes Grid */}
                 <FlatList
-                    data={filteredRecipes}
+                    data={recipes || []}
                     keyExtractor={(item) => item.idMeal || Math.random().toString()}
                     renderItem={({ item }) => (
                         <View style={styles.gridItem}>
@@ -74,11 +122,26 @@ export default function RecipesScreen() {
                     contentContainerStyle={styles.listContent}
                     columnWrapperStyle={styles.row}
                     showsVerticalScrollIndicator={false}
+                    ListEmptyComponent={
+                        !isLoading ? (
+                            <View style={styles.emptyContainer}>
+                                <Text style={styles.emptyText}>No recipes found</Text>
+                            </View>
+                        ) : null
+                    }
                 />
 
                 {/* Bottom spacer for floating tab bar */}
                 <View style={{ height: 80 }} />
             </View>
+
+            {/* Filter Modal */}
+            <FilterModal
+                visible={filterModalVisible}
+                onClose={() => setFilterModalVisible(false)}
+                onApply={handleApplyFilter}
+                currentFilter={activeFilter}
+            />
         </SafeAreaView>
     );
 }
@@ -117,7 +180,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
-        marginBottom: 24,
+        marginBottom: 16,
     },
     searchContainer: {
         flex: 1,
@@ -142,9 +205,36 @@ const styles = StyleSheet.create({
         width: 50,
         height: 50,
         borderRadius: 12,
-        backgroundColor: Colors.light.text, // Dark black/gray
+        backgroundColor: Colors.light.text,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    filterButtonActive: {
+        backgroundColor: Colors.light.primary,
+    },
+    activeFilterRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        backgroundColor: '#F3F4F6',
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        marginBottom: 16,
+    },
+    activeFilterText: {
+        fontFamily: Fonts.regular,
+        fontSize: 14,
+        color: '#6B7280',
+    },
+    activeFilterValue: {
+        fontFamily: Fonts.medium,
+        color: Colors.light.text,
+    },
+    clearFilterText: {
+        fontFamily: Fonts.medium,
+        fontSize: 14,
+        color: Colors.light.primary,
     },
     listContent: {
         paddingBottom: 40,
@@ -154,11 +244,11 @@ const styles = StyleSheet.create({
         marginBottom: 16,
     },
     gridItem: {
-        width: '48%', // Slightly less than 50% to leave space for gap
+        width: '48%',
     },
     cardContainer: {
         width: '100%',
-        aspectRatio: 0.8, // Taller than wide
+        aspectRatio: 0.8,
         borderRadius: 16,
         overflow: 'hidden',
         backgroundColor: '#F3F4F6',
@@ -188,5 +278,16 @@ const styles = StyleSheet.create({
         right: 10,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    emptyContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingTop: 60,
+    },
+    emptyText: {
+        fontFamily: Fonts.regular,
+        fontSize: 16,
+        color: '#9CA3AF',
     },
 });

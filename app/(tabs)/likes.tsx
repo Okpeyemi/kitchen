@@ -137,9 +137,6 @@ export default function LikesScreen() {
                             onChangeText={setSearch}
                         />
                     </View>
-                    <TouchableOpacity style={styles.filterButton}>
-                        <AdjustmentsHorizontalIcon size={24} color="#FFFFFF" />
-                    </TouchableOpacity>
                 </View>
 
                 {/* Recipes Grid */}

@@ -81,3 +81,28 @@ create policy "Users can insert their own likes." on likes
 
 create policy "Users can delete their own likes." on likes
   for delete using ((select auth.uid()) = user_id);
+
+-- Create a table for user's fridge items
+create table if not exists user_fridge (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references profiles(id) not null,
+  name text not null,
+  quantity text,
+  unit text,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+alter table user_fridge enable row level security;
+
+create policy "Users can see their own fridge items." on user_fridge
+  for select using ((select auth.uid()) = user_id);
+
+create policy "Users can insert their own fridge items." on user_fridge
+  for insert with check ((select auth.uid()) = user_id);
+
+create policy "Users can update their own fridge items." on user_fridge
+  for update using ((select auth.uid()) = user_id);
+
+create policy "Users can delete their own fridge items." on user_fridge
+  for delete using ((select auth.uid()) = user_id);
+

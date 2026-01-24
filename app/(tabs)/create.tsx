@@ -1,10 +1,11 @@
+import { AddItemModal } from '@/components/create/AddItemModal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Colors, Fonts } from '@/constants/theme';
 import { useAuth } from '@/ctx/AuthContext';
 import { supabase } from '@/lib/supabase';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { CameraIcon, MinusCircleIcon, PlusCircleIcon } from 'react-native-heroicons/outline';
@@ -18,6 +19,8 @@ type Ingredient = {
 
 export default function CreateRecipeScreen() {
     const router = useRouter();
+    const params = useLocalSearchParams();
+    const isFridgeMode = params.mode === 'fridge';
     const { user } = useAuth();
     const [title, setTitle] = useState('');
     const [instructions, setInstructions] = useState('');
@@ -81,40 +84,88 @@ export default function CreateRecipeScreen() {
         }
     };
 
-    const handleCreate = async () => {
-        if (!title.trim()) {
-            Alert.alert('Error', 'Please enter a recipe title');
-            return;
-        }
 
+    const [addItemModalVisible, setAddItemModalVisible] = useState(false);
+    // Use the FridgeItem type defined in the modal or locally compatible type
+    // We already have Ingredient type locally which is close, but let's extend or adapt
+    // Ingredient has { id, name, amount }, we need { id, name, quantity, unit, thumbUrl }
+    // Let's adapt state to flexible type
+    const [fridgeItems, setFridgeItems] = useState<any[]>([]);
+
+    const handleAddItem = (item: any) => {
+        setFridgeItems([...fridgeItems, item]);
+    };
+
+    const removeFridgeItem = (id: string) => {
+        setFridgeItems(fridgeItems.filter(i => i.id !== id));
+    };
+
+    const handleCreate = async () => {
         if (!user) {
             Alert.alert('Error', 'You must be logged in');
             return;
         }
 
+        if (!isFridgeMode && !title.trim()) {
+            Alert.alert('Error', 'Please enter a recipe title');
+            return;
+        }
+
+        if (isFridgeMode && fridgeItems.length === 0) {
+            Alert.alert('Error', 'Please add at least one item');
+            return;
+        }
+
+        if (!isFridgeMode) {
+            const validIngredients = ingredients.filter(i => i.name.trim() !== '');
+            if (validIngredients.length === 0) {
+                Alert.alert('Error', 'Please add at least one ingredient');
+                return;
+            }
+        }
+
         setLoading(true);
 
         try {
-            let imageUrl = image;
+            if (isFridgeMode) {
+                // Bulk insert into user_fridge
+                const itemsToInsert = fridgeItems.map(item => ({
+                    user_id: user.id,
+                    name: item.name,
+                    quantity: item.quantity,
+                    unit: item.unit
+                }));
 
-            // 1. Upload Image if changed/selected
-            if (image && !image.startsWith('http')) {
-                imageUrl = await uploadImage(image);
+                const { error } = await supabase.from('user_fridge').insert(itemsToInsert);
+                if (error) throw error;
+
+                Alert.alert('Success', 'Items added to your fridge!');
+                router.replace('/(tabs)/fridge');
+
+            } else {
+                // Existing Recipe Creation Logic
+                let imageUrl = image;
+                const validIngredients = ingredients.filter(i => i.name.trim() !== '');
+
+                // 1. Upload Image if changed/selected
+                if (image && !image.startsWith('http')) {
+                    imageUrl = await uploadImage(image);
+                }
+
+                // 2. Insert Recipe
+                const { error } = await supabase.from('user_recipes').insert({
+                    user_id: user.id,
+                    title,
+                    instruction: instructions,
+                    ingredients: validIngredients,
+                    image_url: imageUrl,
+                });
+
+                if (error) throw error;
+
+                Alert.alert('Success', 'Recipe created successfully!');
+                router.replace('/(tabs)/profile');
             }
-
-            // 2. Insert Recipe
-            const { error } = await supabase.from('user_recipes').insert({
-                user_id: user.id,
-                title,
-                instruction: instructions,
-                ingredients: ingredients.filter(i => i.name.trim() !== ''), // Filter empty
-                image_url: imageUrl,
-            });
-
-            if (error) throw error;
-
-            Alert.alert('Success', 'Recipe created successfully!');
-            router.replace('/(tabs)/profile');
         } catch (e: any) {
             Alert.alert('Error', e.message);
         } finally {
@@ -125,79 +176,129 @@ export default function CreateRecipeScreen() {
     return (
         <SafeAreaView style={styles.safeArea}>
             <View style={styles.header}>
-                <Text style={styles.headerTitle}>Create Recipe</Text>
+                <Text style={styles.headerTitle}>{isFridgeMode ? 'Fill Your Fridge' : 'Create Recipe'}</Text>
             </View>
 
             <ScrollView contentContainerStyle={styles.container}>
-                {/* Image Picker */}
-                <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
-                    {image ? (
-                        <Image source={{ uri: image }} style={styles.previewImage} />
-                    ) : (
-                        <View style={styles.imagePlaceholder}>
-                            <CameraIcon size={40} color="#9CA3AF" />
-                            <Text style={styles.imagePlaceholderText}>Add Cover Photo</Text>
-                        </View>
-                    )}
-                </TouchableOpacity>
-
-                {/* Basic Info */}
-                <View style={styles.section}>
-                    <Text style={styles.label}>Recipe Title</Text>
-                    <Input
-                        placeholder="e.g. Grandma's Apple Pie"
-                        value={title}
-                        onChangeText={setTitle}
-                    />
-                </View>
-
-                {/* Ingredients */}
-                <View style={styles.section}>
-                    <Text style={styles.label}>Ingredients</Text>
-                    {ingredients.map((ing, index) => (
-                        <View key={ing.id} style={styles.ingredientRow}>
-                            <View style={{ flex: 2 }}>
-                                <Input
-                                    placeholder="Item"
-                                    value={ing.name}
-                                    onChangeText={(t) => updateIngredient(ing.id, 'name', t)}
-                                />
+                {/* Image Picker - ONLY for Recipe Mode */}
+                {!isFridgeMode && (
+                    <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
+                        {image ? (
+                            <Image source={{ uri: image }} style={styles.previewImage} />
+                        ) : (
+                            <View style={styles.imagePlaceholder}>
+                                <CameraIcon size={40} color="#9CA3AF" />
+                                <Text style={styles.imagePlaceholderText}>Add Cover Photo</Text>
                             </View>
-                            <View style={{ flex: 1 }}>
-                                <Input
-                                    placeholder="Qty"
-                                    value={ing.amount}
-                                    onChangeText={(t) => updateIngredient(ing.id, 'amount', t)}
-                                />
-                            </View>
-                            {ingredients.length > 1 && (
-                                <TouchableOpacity onPress={() => removeIngredient(ing.id)} style={styles.removeBtn}>
-                                    <MinusCircleIcon size={24} color="#EF4444" />
-                                </TouchableOpacity>
-                            )}
-                        </View>
-                    ))}
-                    <TouchableOpacity onPress={addIngredient} style={styles.addIngredientBtn}>
-                        <PlusCircleIcon size={20} color={Colors.light.primary} />
-                        <Text style={styles.addIngredientText}>Add Ingredient</Text>
+                        )}
                     </TouchableOpacity>
-                </View>
+                )}
 
-                {/* Instructions */}
-                <View style={styles.section}>
-                    <Text style={styles.label}>Instructions</Text>
-                    <Input
-                        placeholder="Step 1: ..."
-                        value={instructions}
-                        onChangeText={setInstructions}
-                        multiline
-                        numberOfLines={6}
-                        style={{ height: 120, textAlignVertical: 'top' }}
-                    />
-                </View>
+                {/* Recipe Title - ONLY for Recipe Mode */}
+                {!isFridgeMode && (
+                    <View style={styles.section}>
+                        <Text style={styles.label}>Recipe Title</Text>
+                        <Input
+                            placeholder="e.g. Grandma's Apple Pie"
+                            value={title}
+                            onChangeText={setTitle}
+                        />
+                    </View>
+                )}
+
+                {/* Modes Content */}
+                {isFridgeMode ? (
+                    // FRIDGE MODE UI
+                    <View style={styles.section}>
+                        <View style={styles.fridgeListHeader}>
+                            <Text style={styles.label}>Items to Add</Text>
+                            <TouchableOpacity onPress={() => setAddItemModalVisible(true)} style={styles.addItemBtn}>
+                                <PlusCircleIcon size={20} color={Colors.light.primary} />
+                                <Text style={styles.addItemText}>Add Item</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {fridgeItems.length === 0 ? (
+                            <View style={styles.emptyState}>
+                                <Text style={styles.emptyStateText}>No items added yet.</Text>
+                            </View>
+                        ) : (
+                            <View style={styles.itemsList}>
+                                {fridgeItems.map((item) => (
+                                    <View key={item.id} style={styles.fridgeItemCard}>
+                                        <Image
+                                            source={{ uri: item.thumbUrl || 'https://via.placeholder.com/50' }}
+                                            style={styles.itemThumb}
+                                        />
+                                        <View style={styles.itemInfo}>
+                                            <Text style={styles.itemName}>{item.name}</Text>
+                                            <Text style={styles.itemQty}>{item.quantity} {item.unit}</Text>
+                                        </View>
+                                        <TouchableOpacity onPress={() => removeFridgeItem(item.id)} style={styles.removeBtn}>
+                                            <MinusCircleIcon size={24} color="#EF4444" />
+                                        </TouchableOpacity>
+                                    </View>
+                                ))}
+                            </View>
+                        )}
+
+                        <AddItemModal
+                            visible={addItemModalVisible}
+                            onClose={() => setAddItemModalVisible(false)}
+                            onAddItem={handleAddItem}
+                        />
+                    </View>
+                ) : (
+                    // RECIPE MODE UI (Ingredients List)
+                    <View style={styles.section}>
+                        <Text style={styles.label}>Ingredients</Text>
+                        {ingredients.map((ing, index) => (
+                            <View key={ing.id} style={styles.ingredientRow}>
+                                <View style={{ flex: 2 }}>
+                                    <Input
+                                        placeholder="Item"
+                                        value={ing.name}
+                                        onChangeText={(t) => updateIngredient(ing.id, 'name', t)}
+                                    />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Input
+                                        placeholder="Qty"
+                                        value={ing.amount}
+                                        onChangeText={(t) => updateIngredient(ing.id, 'amount', t)}
+                                    />
+                                </View>
+                                {ingredients.length > 1 && (
+                                    <TouchableOpacity onPress={() => removeIngredient(ing.id)} style={styles.removeBtn}>
+                                        <MinusCircleIcon size={24} color="#EF4444" />
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                        ))}
+                        <TouchableOpacity onPress={addIngredient} style={styles.addIngredientBtn}>
+                            <PlusCircleIcon size={20} color={Colors.light.primary} />
+                            <Text style={styles.addIngredientText}>Add Ingredient</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
+
+                {/* Instructions - ONLY for Recipe Mode */}
+                {!isFridgeMode && (
+                    <View style={styles.section}>
+                        <Text style={styles.label}>Instructions</Text>
+                        <Input
+                            placeholder="Step 1: ..."
+                            value={instructions}
+                            onChangeText={setInstructions}
+                            multiline
+                            numberOfLines={6}
+                            style={{ height: 120, textAlignVertical: 'top' }}
+                        />
+                    </View>
+                )}
 
                 <Button
-                    title={loading ? "Creating..." : "Create Recipe"}
+                    title={loading ? "Saving..." : (isFridgeMode ? "Add All to Fridge" : "Create Recipe")}
                     onPress={handleCreate}
                     style={[styles.createBtn, loading && { opacity: 0.5 }] as any}
                 />
@@ -282,5 +383,68 @@ const styles = StyleSheet.create({
     },
     createBtn: {
         marginTop: 12,
+    },
+    // New Styles for Fridge List
+    fridgeListHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    addItemBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    addItemText: {
+        fontFamily: Fonts.medium,
+        color: Colors.light.primary,
+        fontSize: 14,
+    },
+    emptyState: {
+        padding: 32,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#F9FAFB',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        borderStyle: 'dashed',
+    },
+    emptyStateText: {
+        fontFamily: Fonts.regular,
+        color: '#9CA3AF',
+    },
+    itemsList: {
+        gap: 12,
+    },
+    fridgeItemCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        gap: 12,
+    },
+    itemThumb: {
+        width: 48,
+        height: 48,
+        borderRadius: 8,
+        backgroundColor: '#F3F4F6',
+    },
+    itemInfo: {
+        flex: 1,
+    },
+    itemName: {
+        fontFamily: Fonts.medium,
+        fontSize: 16,
+        color: Colors.light.text,
+    },
+    itemQty: {
+        fontFamily: Fonts.regular,
+        fontSize: 14,
+        color: '#6B7280',
     },
 });
