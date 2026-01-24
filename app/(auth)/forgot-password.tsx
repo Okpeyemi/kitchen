@@ -2,19 +2,37 @@ import { AuthHeader } from '@/components/ui/AuthHeader';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Colors, Fonts } from '@/constants/theme';
+import { supabase } from '@/lib/supabase';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ForgotPasswordScreen() {
     const router = useRouter();
     const [email, setEmail] = useState('');
+    const [loading, setLoading] = useState(false);
 
-    const handleSendCode = () => {
-        // Add logic to send verification code
-        console.log('Send Code to:', email);
-        router.push('/(auth)/verify-code');
+    const handleSendCode = async () => {
+        if (!email.trim()) {
+            Alert.alert('Error', 'Please enter your email address');
+            return;
+        }
+
+        setLoading(true);
+        // Use resetPasswordForEmail to trigger the "Recovery" email template
+        // which should contain {{ .Token }} in your Supabase email template
+        const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
+        setLoading(false);
+
+        if (error) {
+            Alert.alert('Error', error.message);
+        } else {
+            router.push({
+                pathname: '/(auth)/verify-code',
+                params: { email: email.trim(), type: 'recovery' }
+            });
+        }
     };
 
     return (
@@ -37,8 +55,9 @@ export default function ForgotPasswordScreen() {
                     />
 
                     <Button
-                        title="Send code"
+                        title={loading ? "Sending..." : "Send code"}
                         onPress={handleSendCode}
+                        disabled={loading}
                         style={styles.button}
                     />
                 </View>

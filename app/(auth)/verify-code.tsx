@@ -9,7 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function VerifyCodeScreen() {
     const router = useRouter();
-    const { email } = useLocalSearchParams<{ email: string }>();
+    const { email, type = 'signup' } = useLocalSearchParams<{ email: string; type?: string }>();
     const [code, setCode] = useState(['', '', '', '', '', '']); // 6 digits hardcoded
     const inputRefs = useRef<Array<TextInput | null>>([]);
     const [loading, setLoading] = useState(false);
@@ -37,16 +37,19 @@ export default function VerifyCodeScreen() {
         }
 
         if (!email) {
-            Alert.alert('Error', 'Email not found. Please restart sign up.');
+            Alert.alert('Error', 'Email not found. Please restart the process.');
             return;
         }
 
         setLoading(true);
 
+        // Use 'recovery' type for password reset flow, 'signup' for account verification
+        const otpType = type === 'recovery' ? 'recovery' : 'signup';
+
         const { data, error } = await supabase.auth.verifyOtp({
             email,
             token: fullCode,
-            type: 'signup'
+            type: otpType as 'signup' | 'recovery'
         });
 
         setLoading(false);
@@ -54,8 +57,13 @@ export default function VerifyCodeScreen() {
         if (error) {
             Alert.alert('Verification Error', error.message);
         } else {
-            Alert.alert('Success', 'Account verified successfully!');
-            router.replace('/(tabs)'); // Go to main app
+            if (type === 'recovery') {
+                // User is now authenticated, redirect to reset password page
+                router.replace('/(auth)/reset-password');
+            } else {
+                Alert.alert('Success', 'Account verified successfully!');
+                router.replace('/(tabs)');
+            }
         }
     };
 

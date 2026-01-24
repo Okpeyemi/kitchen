@@ -46,7 +46,7 @@ export function CustomHeader({ variant = 'standard', title, style, showPlusButto
                 .single();
 
             if (data) {
-                const name = data.full_name ? data.full_name.split(' ')[0] : 'Chef';
+                const name = data.full_name ? data.full_name.split(' ')[0] : '';
                 setUserName(name);
                 setUserAvatar(data.avatar_url || null);
             }

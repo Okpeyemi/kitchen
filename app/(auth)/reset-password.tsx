@@ -2,21 +2,45 @@ import { AuthHeader } from '@/components/ui/AuthHeader';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Colors, Fonts } from '@/constants/theme';
+import { supabase } from '@/lib/supabase';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ResetPasswordScreen() {
     const router = useRouter();
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [loading, setLoading] = useState(false);
 
-    const handleResetPassword = () => {
-        // Add logic to reset password
-        console.log('Reset Password:', { password, confirmPassword });
-        // Navigate to password changed success screen
-        router.replace('/(auth)/password-changed');
+    const handleResetPassword = async () => {
+        if (!password.trim()) {
+            Alert.alert('Error', 'Please enter a new password');
+            return;
+        }
+
+        if (password.length < 6) {
+            Alert.alert('Error', 'Password must be at least 6 characters');
+            return;
+        }
+
+        if (password !== confirmPassword) {
+            Alert.alert('Error', 'Passwords do not match');
+            return;
+        }
+
+        setLoading(true);
+        const { error } = await supabase.auth.updateUser({
+            password: password,
+        });
+        setLoading(false);
+
+        if (error) {
+            Alert.alert('Error', error.message);
+        } else {
+            router.replace('/(auth)/password-changed');
+        }
     };
 
     return (
@@ -46,8 +70,9 @@ export default function ResetPasswordScreen() {
                     />
 
                     <Button
-                        title="Reset Password"
+                        title={loading ? "Resetting..." : "Reset Password"}
                         onPress={handleResetPassword}
+                        disabled={loading}
                         style={styles.button}
                     />
                 </View>
