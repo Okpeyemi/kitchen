@@ -1,6 +1,6 @@
 import { CreateSelectionModal } from '@/components/create/CreateSelectionModal';
 import { Colors } from '@/constants/theme';
-import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { MaterialTopTabBarProps } from '@react-navigation/material-top-tabs';
 import { useState } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import {
@@ -22,7 +22,7 @@ import {
     UserIcon as UserSolid
 } from 'react-native-heroicons/solid';
 
-export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+export function TabBar({ state, descriptors, navigation }: MaterialTopTabBarProps) {
     const [createModalVisible, setCreateModalVisible] = useState(false);
 
     return (

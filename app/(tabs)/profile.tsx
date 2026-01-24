@@ -1,10 +1,11 @@
+import { CustomHeader } from '@/components/ui/CustomHeader';
 import { Colors, Fonts } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import {
     ArrowLeftIcon,
     ArrowRightOnRectangleIcon,
@@ -72,20 +73,13 @@ export default function ProfileScreen() {
             <View style={styles.container}>
 
                 {/* Header */}
-                <View style={styles.header}>
-                    <TouchableOpacity onPress={() => router.back()} style={styles.iconButton}>
-                        <ArrowLeftIcon size={24} color={Colors.light.text} />
-                    </TouchableOpacity>
+                <CustomHeader variant="profile" />
 
-                    <TouchableOpacity
-                        style={styles.notificationButton}
-                        onPress={() => router.push('/edit-profile')}
-                    >
-                        <PencilSquareIcon size={20} color={Colors.light.text} />
-                    </TouchableOpacity>
-                </View>
-
-                <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                <ScrollView
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
+                    refreshControl={<RefreshControl refreshing={false} onRefresh={refetch} tintColor={Colors.light.primary} />}
+                >
                     {/* User Info */}
                     <View style={styles.userInfo}>
                         <View style={styles.avatarContainer}>

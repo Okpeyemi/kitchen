@@ -1,10 +1,11 @@
 import { FilterModal } from '@/components/recipes/FilterModal';
+import { CustomHeader } from '@/components/ui/CustomHeader';
 import { Colors, Fonts } from '@/constants/theme';
 import { filterByArea, filterByCategory, filterByIngredient, MealPreview, searchMealsByName } from '@/lib/themealdb';
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { AdjustmentsHorizontalIcon, BellIcon, HeartIcon, MagnifyingGlassIcon } from 'react-native-heroicons/outline';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -26,19 +27,28 @@ const RecipeCard = ({ title, image }: { title: string, image: string }) => (
 
 export default function RecipesScreen() {
     const router = useRouter();
-    const [search, setSearch] = useState('');
+    const params = useLocalSearchParams();
+    const initialSearch = typeof params.search === 'string' ? params.search : '';
+    const [search, setSearch] = useState(initialSearch);
     const [filterModalVisible, setFilterModalVisible] = useState(false);
+
+    // Update search if params change (e.g. navigation from Home)
+    useEffect(() => {
+        if (params.search && typeof params.search === 'string') {
+            setSearch(params.search);
+        }
+    }, [params.search]);
     const [activeFilter, setActiveFilter] = useState<ActiveFilter>(null);
 
     // Search query
-    const { data: searchResults, isLoading: isSearching } = useQuery({
+    const { data: searchResults, isLoading: isSearching, refetch: refetchSearch } = useQuery({
         queryKey: ['recipes', search],
         queryFn: () => searchMealsByName(search),
         enabled: !activeFilter || search.length > 0, // Disable if filter is active without search
     });
 
     // Filter query
-    const { data: filteredResults, isLoading: isFiltering } = useQuery({
+    const { data: filteredResults, isLoading: isFiltering, refetch: refetchFiltered } = useQuery({
         queryKey: ['filteredRecipes', activeFilter?.type, activeFilter?.value],
         queryFn: async (): Promise<MealPreview[]> => {
             if (!activeFilter) return [];
@@ -56,6 +66,16 @@ export default function RecipesScreen() {
         enabled: !!activeFilter && search.length === 0,
     });
 
+    const onRefresh = async () => {
+        if (search.length > 0) {
+            await refetchSearch();
+        } else if (activeFilter) {
+            await refetchFiltered();
+        } else {
+            await refetchSearch();
+        }
+    };
+
     // Determine which recipes to display
     const recipes = search.length > 0 ? searchResults : activeFilter ? filteredResults : searchResults;
     const isLoading = search.length > 0 ? isSearching : activeFilter ? isFiltering : isSearching;
@@ -66,15 +86,9 @@ export default function RecipesScreen() {
 
     return (
         <SafeAreaView style={styles.safeArea}>
+            {/* Header */}
+            <CustomHeader title="Recipes" />
             <View style={styles.container}>
-                {/* Header */}
-                <View style={styles.header}>
-                    <Text style={styles.headerTitle}>Recipes</Text>
-                    <TouchableOpacity style={styles.notificationButton}>
-                        <BellIcon size={24} color={Colors.light.text} />
-                    </TouchableOpacity>
-                </View>
-
                 {/* Search & Filter */}
                 <View style={styles.searchRow}>
                     <View style={styles.searchContainer}>
@@ -122,6 +136,8 @@ export default function RecipesScreen() {
                     contentContainerStyle={styles.listContent}
                     columnWrapperStyle={styles.row}
                     showsVerticalScrollIndicator={false}
+                    refreshing={isLoading}
+                    onRefresh={onRefresh}
                     ListEmptyComponent={
                         !isLoading ? (
                             <View style={styles.emptyContainer}>

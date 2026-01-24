@@ -1,4 +1,5 @@
 import { AddItemModal, FridgeItem } from '@/components/create/AddItemModal';
+import { CustomHeader } from '@/components/ui/CustomHeader';
 import { Colors, Fonts } from '@/constants/theme';
 import { useAuth } from '@/ctx/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -110,9 +111,7 @@ export default function FridgeScreen() {
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>My Fridge</Text>
-            </View>
+            <CustomHeader title="My Fridge" />
 
             <ScrollView
                 contentContainerStyle={styles.container}
@@ -186,7 +185,8 @@ const styles = StyleSheet.create({
         color: Colors.light.text,
     },
     container: {
-        padding: 24,
+        paddingHorizontal: 24,
+        paddingTop: 10,
         minHeight: '100%',
     },
     emptyState: {

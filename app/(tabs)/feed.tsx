@@ -1,11 +1,12 @@
+import { CustomHeader } from '@/components/ui/CustomHeader';
 import { Colors, Fonts } from '@/constants/theme';
-import { StyleSheet, Text } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function FeedScreen() {
     return (
         <SafeAreaView style={styles.container}>
-            <Text style={styles.text}>Feed</Text>
+            <CustomHeader title="Feed" />
         </SafeAreaView>
     );
 }

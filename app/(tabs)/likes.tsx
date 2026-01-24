@@ -1,3 +1,4 @@
+import { CustomHeader } from '@/components/ui/CustomHeader';
 import { Colors, Fonts } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
 import { getRecipeById } from '@/lib/themealdb';
@@ -6,8 +7,7 @@ import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router'; // Use focus effect to refetch when screen is focused
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { AdjustmentsHorizontalIcon, BellIcon, MagnifyingGlassIcon } from 'react-native-heroicons/outline';
-import { HeartIcon as HeartSolid } from 'react-native-heroicons/solid';
+import { HeartIcon as HeartSolid, MagnifyingGlassIcon } from 'react-native-heroicons/solid';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const RecipeCard = ({ item, onUnlike }: { item: any, onUnlike: () => void }) => (
@@ -116,15 +116,8 @@ export default function LikesScreen() {
 
     return (
         <SafeAreaView style={styles.safeArea}>
+            <CustomHeader title="Likes" />
             <View style={styles.container}>
-                {/* Header */}
-                <View style={styles.header}>
-                    <Text style={styles.headerTitle}>Likes</Text>
-                    <TouchableOpacity style={styles.notificationButton}>
-                        <BellIcon size={24} color={Colors.light.text} />
-                    </TouchableOpacity>
-                </View>
-
                 {/* Search & Filter */}
                 <View style={styles.searchRow}>
                     <View style={styles.searchContainer}>
@@ -228,14 +221,6 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: Colors.light.text,
         height: '100%',
-    },
-    filterButton: {
-        width: 50,
-        height: 50,
-        borderRadius: 12,
-        backgroundColor: Colors.light.text, // Dark black/gray
-        justifyContent: 'center',
-        alignItems: 'center',
     },
     listContent: {
         paddingBottom: 40,

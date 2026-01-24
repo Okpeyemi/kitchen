@@ -1,56 +1,73 @@
 import { TabBar } from '@/components/navigation/TabBar';
-import { Tabs } from 'expo-router';
+import {
+  createMaterialTopTabNavigator,
+  MaterialTopTabNavigationEventMap,
+  MaterialTopTabNavigationOptions
+} from '@react-navigation/material-top-tabs';
+import { ParamListBase, TabNavigationState } from '@react-navigation/native';
+import { withLayoutContext } from 'expo-router';
 import React from 'react';
+
+const { Navigator } = createMaterialTopTabNavigator();
+
+export const MaterialTopTabs = withLayoutContext<
+  MaterialTopTabNavigationOptions,
+  typeof Navigator,
+  TabNavigationState<ParamListBase>,
+  MaterialTopTabNavigationEventMap
+>(Navigator);
 
 export default function TabLayout() {
   return (
-    <Tabs
+    <MaterialTopTabs
       tabBar={(props) => <TabBar {...props} />}
+      tabBarPosition="bottom"
       screenOptions={{
-        headerShown: false,
+        swipeEnabled: true,
+        animationEnabled: true,
       }}>
-      <Tabs.Screen
+      <MaterialTopTabs.Screen
         name="index"
         options={{
           title: 'Home',
         }}
       />
-      <Tabs.Screen
+      <MaterialTopTabs.Screen
         name="likes"
         options={{
           title: 'Likes',
         }}
       />
-      <Tabs.Screen
+      <MaterialTopTabs.Screen
         name="fridge"
         options={{
           title: 'Fridge',
         }}
       />
-      <Tabs.Screen
+      <MaterialTopTabs.Screen
         name="create"
         options={{
           title: 'Create',
         }}
       />
-      <Tabs.Screen
+      <MaterialTopTabs.Screen
         name="recipes"
         options={{
           title: 'Recipes',
         }}
       />
-      <Tabs.Screen
+      <MaterialTopTabs.Screen
         name="feed"
         options={{
           title: 'Feed',
         }}
       />
-      <Tabs.Screen
+      <MaterialTopTabs.Screen
         name="profile"
         options={{
           title: 'Profile',
         }}
       />
-    </Tabs>
+    </MaterialTopTabs>
   );
 }

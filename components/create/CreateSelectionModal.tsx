@@ -45,10 +45,10 @@ export const CreateSelectionModal = ({ visible, onClose }: CreateSelectionModalP
     const handleSelect = (mode: 'recipe' | 'fridge') => {
         onClose();
         if (mode === 'fridge') {
-            router.push('/(tabs)/create?mode=fridge');
+            router.push('/create?mode=fridge');
         } else {
             // Default creates recipe, clear params if any
-            router.push('/(tabs)/create');
+            router.push('/create');
         }
     };
 

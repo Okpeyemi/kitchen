@@ -1,14 +1,13 @@
 import { CategoryItem } from '@/components/home/CategoryItem';
 import { TrendingRecipeCard } from '@/components/home/TrendingRecipeCard';
+import { CustomHeader } from '@/components/ui/CustomHeader';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors, Fonts } from '@/constants/theme';
 import { getCategories, searchRecipes } from '@/lib/themealdb';
 import { useQuery } from '@tanstack/react-query';
-import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { ActivityIndicator, FlatList, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { BellIcon } from 'react-native-heroicons/outline';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, FlatList, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
@@ -17,16 +16,24 @@ export default function HomeScreen() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   // Fetch Categories
-  const { data: categories, isLoading: isLoadingCategories } = useQuery({
+  const { data: categories, isLoading: isLoadingCategories, refetch: refetchCategories } = useQuery({
     queryKey: ['categories'],
     queryFn: getCategories
   });
 
   // Fetch Trending (Random/Default)
-  const { data: trendingRecipes, isLoading: isLoadingTrending } = useQuery({
+  const { data: trendingRecipes, isLoading: isLoadingTrending, refetch: refetchTrending } = useQuery({
     queryKey: ['trending'],
     queryFn: () => searchRecipes('') // Empty search returns a variety of meals
   });
+
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([refetchCategories(), refetchTrending()]);
+    setRefreshing(false);
+  }, [refetchCategories, refetchTrending]);
 
   const handleRecipePress = (id: string) => {
     router.push(`/recipe/${id}`);
@@ -40,22 +47,13 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <CustomHeader variant="home" />
 
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.userInfo}>
-            <Image
-              source={require('@/assets/images/user-avatar.png')}
-              style={styles.avatar}
-              contentFit="cover"
-            />
-            <Text style={styles.userName}>Hello, Chef!</Text>
-          </View>
-          <TouchableOpacity style={styles.notificationButton}>
-            <BellIcon size={24} color={Colors.light.text} />
-          </TouchableOpacity>
-        </View>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.light.primary} />}
+      >
 
         {/* Title */}
         <Text style={styles.pageTitle}>What's cooking today?</Text>
