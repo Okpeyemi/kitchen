@@ -12,11 +12,11 @@ type CustomHeaderProps = {
     title?: string;
     style?: ViewStyle;
     showPlusButton?: boolean;
-    // Optional: manually override which screen logic to use if not deducible,
-    // though we can deduce from requirements: Home->Modal, Fridge->FridgeMode, Recipes->RecipeMode
+    rightAction?: React.ReactNode; // New prop for custom action
 };
 
-export function CustomHeader({ variant = 'standard', title, style, showPlusButton = false }: CustomHeaderProps) {
+export function CustomHeader({ variant = 'standard', title, style, showPlusButton = false, rightAction }: CustomHeaderProps) {
+    // ... (existing logic)
     const router = useRouter();
     const pathname = usePathname();
     const [modalVisible, setModalVisible] = useState(false);
@@ -57,34 +57,18 @@ export function CustomHeader({ variant = 'standard', title, style, showPlusButto
 
 
     const handlePlusPress = () => {
-        // Logic based on requirements:
-        // index -> Open Modal
-        // fridge -> Go to Create Fridge
-        // recipes -> Go to Create Recipe
-
-        // We can check pathname or variant+title combination.
-        // pathname might be stable enough: '/fridge', '/recipes', '/(tabs)/index' etc.
-
-        // Simpler: use the title or variant if unique.
-        // Home uses variant='home'
         if (variant === 'home') {
             setModalVisible(true);
             return;
         }
-
-        // Fridge
         if (title === 'My Fridge') {
             router.push('/create?mode=fridge');
             return;
         }
-
-        // Recipes
         if (title === 'Recipes') {
-            router.push('/create'); // default is recipe mode
+            router.push('/create');
             return;
         }
-
-        // Fallback for explicitly enabled plus button (treat as modal or log error)
         setModalVisible(true);
     };
 
@@ -137,14 +121,22 @@ export function CustomHeader({ variant = 'standard', title, style, showPlusButto
         <View style={[styles.header, style]}>
             <Text style={styles.headerTitle}>{title}</Text>
             <View style={styles.rightActions}>
-                <TouchableOpacity style={styles.notificationButton}>
-                    <BellIcon size={24} color={Colors.light.text} />
-                </TouchableOpacity>
-                {showPlusButton && <PlusButton />}
+                {rightAction ? (
+                    rightAction
+                ) : (
+                    <>
+                        <TouchableOpacity style={styles.notificationButton}>
+                            <BellIcon size={24} color={Colors.light.text} />
+                        </TouchableOpacity>
+                        {showPlusButton && <PlusButton />}
+                    </>
+                )}
             </View>
         </View>
     );
 }
+
+// ... (styles)
 
 const styles = StyleSheet.create({
     header: {

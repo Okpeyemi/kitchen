@@ -22,7 +22,7 @@ type UserRecipe = {
     image_url: string | null;
 };
 
-const RecipeCard = ({ title, image }: { title: string, image: string }) => (
+const RecipeCard = ({ title, image }: { title: string, image: any }) => (
     <View style={styles.cardContainer}>
         <Image source={image} style={styles.cardImage} contentFit="cover" />
         <TouchableOpacity style={styles.likeButton}>
@@ -51,6 +51,14 @@ export default function RecipesScreen() {
     }, [params.search]);
     const [activeFilter, setActiveFilter] = useState<ActiveFilter>(null);
 
+    type RecipeBook = {
+        id: string;
+        title: string;
+        pdf_url: string;
+    };
+
+    type DisplayItem = (UserRecipe | RecipeBook) & { type: 'recipe' | 'book' };
+
     // Query for user recipes
     const { data: userRecipes, isLoading: isLoadingUserRecipes, refetch: refetchUserRecipes } = useQuery({
         queryKey: ['userRecipes', user?.id],
@@ -66,6 +74,28 @@ export default function RecipesScreen() {
         },
         enabled: activeTab === 'my' && !!user,
     });
+
+    // Query for user recipe books
+    const { data: userBooks, isLoading: isLoadingUserBooks, refetch: refetchUserBooks } = useQuery({
+        queryKey: ['userBooks', user?.id],
+        queryFn: async (): Promise<RecipeBook[]> => {
+            if (!user) return [];
+            const { data, error } = await supabase
+                .from('recipe_books')
+                .select('id, title, pdf_url')
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: false });
+            if (error) throw error;
+            return data || [];
+        },
+        enabled: activeTab === 'my' && !!user,
+    });
+
+    // Merge and sort items for "My Recipes"
+    const myItems: DisplayItem[] = [
+        ...(userRecipes || []).map(r => ({ ...r, type: 'recipe' as const })),
+        ...(userBooks || []).map(b => ({ ...b, type: 'book' as const }))
+    ]; // Note: Ideally define a combined sort if dates were available for both, simplistic merge for now or sort by ID/fetched order
 
     // Search query
     const { data: searchResults, isLoading: isSearching, refetch: refetchSearch } = useQuery({
@@ -95,7 +125,7 @@ export default function RecipesScreen() {
 
     const onRefresh = async () => {
         if (activeTab === 'my') {
-            await refetchUserRecipes();
+            await Promise.all([refetchUserRecipes(), refetchUserBooks()]);
         } else {
             if (search.length > 0) {
                 await refetchSearch();
@@ -109,11 +139,14 @@ export default function RecipesScreen() {
 
     // Determine which recipes to display
     const recipes = search.length > 0 ? searchResults : activeFilter ? filteredResults : searchResults;
-    const isLoading = activeTab === 'my' ? isLoadingUserRecipes : (search.length > 0 ? isSearching : activeFilter ? isFiltering : isSearching);
+    const isLoading = activeTab === 'my' ? (isLoadingUserRecipes || isLoadingUserBooks) : (search.length > 0 ? isSearching : activeFilter ? isFiltering : isSearching);
 
     const handleApplyFilter = (filter: ActiveFilter) => {
         setActiveFilter(filter);
     };
+
+    // Import Linking for PDF
+    // Note: ensure Linking is imported from 'react-native' at top of file. (I will add it if missing)
 
     return (
         <SafeAreaView style={styles.safeArea}>
@@ -204,28 +237,50 @@ export default function RecipesScreen() {
                         }
                     />
                 ) : (
-                    /* My Recipes Grid */
+                    /* My Recipes Grid (Mixed) */
                     <FlatList
-                        data={userRecipes || []}
+                        data={myItems}
                         keyExtractor={(item) => item.id}
-                        renderItem={({ item }) => (
-                            <View style={styles.gridItem}>
-                                <TouchableOpacity onPress={() => router.push(`/recipe/${item.id}?source=user`)}>
-                                    <RecipeCard
-                                        title={item.title}
-                                        image={item.image_url || 'https://via.placeholder.com/300x200?text=No+Image'}
-                                    />
-                                </TouchableOpacity>
-                            </View>
-                        )}
+                        renderItem={({ item }) => {
+                            if (item.type === 'book') {
+                                const book = item as RecipeBook & { type: 'book' };
+                                return (
+                                    <View style={styles.gridItem}>
+                                        <TouchableOpacity onPress={() => {
+                                            router.push({
+                                                pathname: '/pdf-viewer',
+                                                params: { url: book.pdf_url, title: book.title }
+                                            });
+                                        }}>
+                                            <RecipeCard
+                                                title={`📚 ${book.title}`}
+                                                image={require('@/assets/images/books.png')}
+                                            />
+                                        </TouchableOpacity>
+                                    </View>
+                                );
+                            } else {
+                                const recipe = item as UserRecipe & { type: 'recipe' };
+                                return (
+                                    <View style={styles.gridItem}>
+                                        <TouchableOpacity onPress={() => router.push(`/recipe/${recipe.id}?source=user`)}>
+                                            <RecipeCard
+                                                title={recipe.title}
+                                                image={recipe.image_url || 'https://via.placeholder.com/300x200?text=No+Image'}
+                                            />
+                                        </TouchableOpacity>
+                                    </View>
+                                );
+                            }
+                        }}
                         numColumns={2}
                         contentContainerStyle={styles.listContent}
                         columnWrapperStyle={styles.row}
                         showsVerticalScrollIndicator={false}
-                        refreshing={isLoadingUserRecipes}
+                        refreshing={isLoading}
                         onRefresh={onRefresh}
                         ListEmptyComponent={
-                            !isLoadingUserRecipes ? (
+                            !isLoading ? (
                                 <View style={styles.emptyContainer}>
                                     <Text style={styles.emptyText}>You haven't created any recipes yet</Text>
                                     <TouchableOpacity
