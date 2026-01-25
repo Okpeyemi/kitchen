@@ -1,6 +1,8 @@
 import { FilterModal } from '@/components/recipes/FilterModal';
 import { CustomHeader } from '@/components/ui/CustomHeader';
 import { Colors, Fonts } from '@/constants/theme';
+import { useAuth } from '@/ctx/AuthContext';
+import { supabase } from '@/lib/supabase';
 import { filterByArea, filterByCategory, filterByIngredient, MealPreview, searchMealsByName } from '@/lib/themealdb';
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
@@ -12,6 +14,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 type FilterType = 'category' | 'area' | 'ingredient';
 type ActiveFilter = { type: FilterType; value: string } | null;
+type TabType = 'world' | 'my';
+
+type UserRecipe = {
+    id: string;
+    title: string;
+    image_url: string | null;
+};
 
 const RecipeCard = ({ title, image }: { title: string, image: string }) => (
     <View style={styles.cardContainer}>
@@ -28,9 +37,11 @@ const RecipeCard = ({ title, image }: { title: string, image: string }) => (
 export default function RecipesScreen() {
     const router = useRouter();
     const params = useLocalSearchParams();
+    const { user } = useAuth();
     const initialSearch = typeof params.search === 'string' ? params.search : '';
     const [search, setSearch] = useState(initialSearch);
     const [filterModalVisible, setFilterModalVisible] = useState(false);
+    const [activeTab, setActiveTab] = useState<TabType>('world');
 
     // Update search if params change (e.g. navigation from Home)
     useEffect(() => {
@@ -39,6 +50,22 @@ export default function RecipesScreen() {
         }
     }, [params.search]);
     const [activeFilter, setActiveFilter] = useState<ActiveFilter>(null);
+
+    // Query for user recipes
+    const { data: userRecipes, isLoading: isLoadingUserRecipes, refetch: refetchUserRecipes } = useQuery({
+        queryKey: ['userRecipes', user?.id],
+        queryFn: async (): Promise<UserRecipe[]> => {
+            if (!user) return [];
+            const { data, error } = await supabase
+                .from('user_recipes')
+                .select('id, title, image_url')
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: false });
+            if (error) throw error;
+            return data || [];
+        },
+        enabled: activeTab === 'my' && !!user,
+    });
 
     // Search query
     const { data: searchResults, isLoading: isSearching, refetch: refetchSearch } = useQuery({
@@ -67,18 +94,22 @@ export default function RecipesScreen() {
     });
 
     const onRefresh = async () => {
-        if (search.length > 0) {
-            await refetchSearch();
-        } else if (activeFilter) {
-            await refetchFiltered();
+        if (activeTab === 'my') {
+            await refetchUserRecipes();
         } else {
-            await refetchSearch();
+            if (search.length > 0) {
+                await refetchSearch();
+            } else if (activeFilter) {
+                await refetchFiltered();
+            } else {
+                await refetchSearch();
+            }
         }
     };
 
     // Determine which recipes to display
     const recipes = search.length > 0 ? searchResults : activeFilter ? filteredResults : searchResults;
-    const isLoading = search.length > 0 ? isSearching : activeFilter ? isFiltering : isSearching;
+    const isLoading = activeTab === 'my' ? isLoadingUserRecipes : (search.length > 0 ? isSearching : activeFilter ? isFiltering : isSearching);
 
     const handleApplyFilter = (filter: ActiveFilter) => {
         setActiveFilter(filter);
@@ -89,63 +120,125 @@ export default function RecipesScreen() {
             {/* Header */}
             <CustomHeader title="Recipes" showPlusButton />
             <View style={styles.container}>
-                {/* Search & Filter */}
-                <View style={styles.searchRow}>
-                    <View style={styles.searchContainer}>
-                        <MagnifyingGlassIcon size={20} color="#9CA3AF" />
-                        <TextInput
-                            style={styles.searchInput}
-                            placeholder="Search recipes"
-                            placeholderTextColor="#9CA3AF"
-                            value={search}
-                            onChangeText={setSearch}
-                        />
-                    </View>
+                {/* Tabs */}
+                <View style={styles.tabContainer}>
                     <TouchableOpacity
-                        style={[styles.filterButton, activeFilter && styles.filterButtonActive]}
-                        onPress={() => setFilterModalVisible(true)}
+                        style={[styles.tab, activeTab === 'world' && styles.tabActive]}
+                        onPress={() => setActiveTab('world')}
                     >
-                        <AdjustmentsHorizontalIcon size={24} color="#FFFFFF" />
+                        <Text style={[styles.tabText, activeTab === 'world' && styles.tabTextActive]}>
+                            Recipes of the world
+                        </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.tab, activeTab === 'my' && styles.tabActive]}
+                        onPress={() => setActiveTab('my')}
+                    >
+                        <Text style={[styles.tabText, activeTab === 'my' && styles.tabTextActive]}>
+                            My recipes
+                        </Text>
                     </TouchableOpacity>
                 </View>
 
-                {/* Active Filter Indicator */}
-                {activeFilter && (
-                    <View style={styles.activeFilterRow}>
-                        <Text style={styles.activeFilterText}>
-                            Filtered by {activeFilter.type}: <Text style={styles.activeFilterValue}>{activeFilter.value}</Text>
-                        </Text>
-                        <TouchableOpacity onPress={() => setActiveFilter(null)}>
-                            <Text style={styles.clearFilterText}>Clear</Text>
-                        </TouchableOpacity>
-                    </View>
-                )}
-
-                {/* Recipes Grid */}
-                <FlatList
-                    data={recipes || []}
-                    keyExtractor={(item) => item.idMeal || Math.random().toString()}
-                    renderItem={({ item }) => (
-                        <View style={styles.gridItem}>
-                            <TouchableOpacity onPress={() => router.push(`/recipe/${item.idMeal}`)}>
-                                <RecipeCard title={item.strMeal || 'Unknown Meal'} image={item.strMealThumb || ''} />
+                {/* Search & Filter - Only show for World tab */}
+                {activeTab === 'world' && (
+                    <>
+                        <View style={styles.searchRow}>
+                            <View style={styles.searchContainer}>
+                                <MagnifyingGlassIcon size={20} color="#9CA3AF" />
+                                <TextInput
+                                    style={styles.searchInput}
+                                    placeholder="Search recipes"
+                                    placeholderTextColor="#9CA3AF"
+                                    value={search}
+                                    onChangeText={setSearch}
+                                />
+                            </View>
+                            <TouchableOpacity
+                                style={[styles.filterButton, activeFilter && styles.filterButtonActive]}
+                                onPress={() => setFilterModalVisible(true)}
+                            >
+                                <AdjustmentsHorizontalIcon size={24} color="#FFFFFF" />
                             </TouchableOpacity>
                         </View>
-                    )}
-                    numColumns={2}
-                    contentContainerStyle={styles.listContent}
-                    columnWrapperStyle={styles.row}
-                    showsVerticalScrollIndicator={false}
-                    refreshing={isLoading}
-                    onRefresh={onRefresh}
-                    ListEmptyComponent={
-                        !isLoading ? (
-                            <View style={styles.emptyContainer}>
-                                <Text style={styles.emptyText}>No recipes found</Text>
+
+                        {/* Active Filter Indicator */}
+                        {activeFilter && (
+                            <View style={styles.activeFilterRow}>
+                                <Text style={styles.activeFilterText}>
+                                    Filtered by {activeFilter.type}: <Text style={styles.activeFilterValue}>{activeFilter.value}</Text>
+                                </Text>
+                                <TouchableOpacity onPress={() => setActiveFilter(null)}>
+                                    <Text style={styles.clearFilterText}>Clear</Text>
+                                </TouchableOpacity>
                             </View>
-                        ) : null
-                    }
-                />
+                        )}
+                    </>
+                )}
+
+                {/* Content based on active tab */}
+                {activeTab === 'world' ? (
+                    /* Recipes Grid - World */
+                    <FlatList
+                        data={recipes || []}
+                        keyExtractor={(item) => item.idMeal || Math.random().toString()}
+                        renderItem={({ item }) => (
+                            <View style={styles.gridItem}>
+                                <TouchableOpacity onPress={() => router.push(`/recipe/${item.idMeal}`)}>
+                                    <RecipeCard title={item.strMeal || 'Unknown Meal'} image={item.strMealThumb || ''} />
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                        numColumns={2}
+                        contentContainerStyle={styles.listContent}
+                        columnWrapperStyle={styles.row}
+                        showsVerticalScrollIndicator={false}
+                        refreshing={isLoading}
+                        onRefresh={onRefresh}
+                        ListEmptyComponent={
+                            !isLoading ? (
+                                <View style={styles.emptyContainer}>
+                                    <Text style={styles.emptyText}>No recipes found</Text>
+                                </View>
+                            ) : null
+                        }
+                    />
+                ) : (
+                    /* My Recipes Grid */
+                    <FlatList
+                        data={userRecipes || []}
+                        keyExtractor={(item) => item.id}
+                        renderItem={({ item }) => (
+                            <View style={styles.gridItem}>
+                                <TouchableOpacity onPress={() => router.push(`/recipe/${item.id}?source=user`)}>
+                                    <RecipeCard
+                                        title={item.title}
+                                        image={item.image_url || 'https://via.placeholder.com/300x200?text=No+Image'}
+                                    />
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                        numColumns={2}
+                        contentContainerStyle={styles.listContent}
+                        columnWrapperStyle={styles.row}
+                        showsVerticalScrollIndicator={false}
+                        refreshing={isLoadingUserRecipes}
+                        onRefresh={onRefresh}
+                        ListEmptyComponent={
+                            !isLoadingUserRecipes ? (
+                                <View style={styles.emptyContainer}>
+                                    <Text style={styles.emptyText}>You haven't created any recipes yet</Text>
+                                    <TouchableOpacity
+                                        style={styles.createButton}
+                                        onPress={() => router.push('/create')}
+                                    >
+                                        <Text style={styles.createButtonText}>Create your first recipe</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ) : null
+                        }
+                    />
+                )}
 
                 {/* Bottom spacer for floating tab bar */}
                 <View style={{ height: 80 }} />
@@ -171,6 +264,36 @@ const styles = StyleSheet.create({
         flex: 1,
         paddingHorizontal: 24,
         paddingTop: 10,
+    },
+    tabContainer: {
+        flexDirection: 'row',
+        marginBottom: 16,
+        backgroundColor: '#F3F4F6',
+        borderRadius: 12,
+        padding: 4,
+    },
+    tab: {
+        flex: 1,
+        paddingVertical: 12,
+        alignItems: 'center',
+        borderRadius: 10,
+    },
+    tabActive: {
+        backgroundColor: '#FFFFFF',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        elevation: 2,
+    },
+    tabText: {
+        fontFamily: Fonts.medium,
+        fontSize: 14,
+        color: '#6B7280',
+    },
+    tabTextActive: {
+        color: Colors.light.text,
+        fontFamily: Fonts.bold,
     },
     header: {
         flexDirection: 'row',
@@ -305,5 +428,17 @@ const styles = StyleSheet.create({
         fontFamily: Fonts.regular,
         fontSize: 16,
         color: '#9CA3AF',
+    },
+    createButton: {
+        marginTop: 16,
+        backgroundColor: Colors.light.primary,
+        paddingHorizontal: 24,
+        paddingVertical: 12,
+        borderRadius: 12,
+    },
+    createButtonText: {
+        fontFamily: Fonts.medium,
+        fontSize: 14,
+        color: Colors.light.background,
     },
 });

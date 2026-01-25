@@ -1,16 +1,15 @@
 import { Colors, Fonts } from '@/constants/theme';
+import { generateRecipeDescription } from '@/lib/gemini';
 import { supabase } from '@/lib/supabase';
 import { getRecipeById } from '@/lib/themealdb';
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import {
     ArrowLeftIcon,
-    ArrowUpTrayIcon,
-    MinusIcon,
-    PlusIcon
+    ArrowUpTrayIcon
 } from 'react-native-heroicons/outline';
 import { HeartIcon as HeartSolid } from 'react-native-heroicons/solid';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,6 +20,8 @@ export default function RecipeDetailScreen() {
     const [activeTab, setActiveTab] = useState<'Detail' | 'Ingredients' | 'Instruction'>('Ingredients');
     const [servings, setServings] = useState(2);
     const [isLiked, setIsLiked] = useState(false);
+    const [aiDescription, setAiDescription] = useState<string | null>(null);
+    const [loadingDescription, setLoadingDescription] = useState(false);
     const insets = useSafeAreaInsets();
 
     const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
@@ -100,30 +101,65 @@ export default function RecipeDetailScreen() {
         }
     });
 
-    if (isLoading || !recipe) {
-        return (
-            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-                <ActivityIndicator size="large" color={Colors.light.primary} />
-            </View>
-        );
-    }
-
-    // Helper to normalize data for display
-    const displayTitle = recipe.source === 'user' ? recipe.title : recipe.strMeal;
-    const displayImage = recipe.source === 'user' ? recipe.image_url : recipe.strMealThumb;
-    const displayInstructions = recipe.source === 'user' ? recipe.instruction : recipe.strInstructions;
+    // Helper to normalize data for display (safe access)
+    const displayTitle = recipe?.source === 'user' ? recipe.title : recipe?.strMeal;
+    const displayImage = recipe?.source === 'user' ? recipe.image_url : recipe?.strMealThumb;
+    const displayInstructions = recipe?.source === 'user' ? recipe.instruction : recipe?.strInstructions;
 
     // Normalize Ingredients
-    const displayIngredients = recipe.source === 'user'
-        ? (recipe.ingredients || [])
-        : Array.from({ length: 20 }, (_, i) => i + 1)
-            .map(i => ({
-                id: `ing-${i}`,
-                name: recipe[`strIngredient${i}`],
-                amount: recipe[`strMeasure${i}`],
-                image: recipe[`strIngredient${i}`] ? `https://www.themealdb.com/images/ingredients/${recipe[`strIngredient${i}`]}-Small.png` : null
+    const defaultIngredientImage = require('@/assets/images/ingredients.png');
+
+    // Safely calculate ingredients only if recipe exists
+    const displayIngredients = recipe
+        ? (recipe.source === 'user'
+            ? (recipe.ingredients || []).map((ing: any, idx: number) => ({
+                ...ing,
+                id: ing.id || `ing-${idx}`,
+                image: null // User recipes use default image
             }))
-            .filter((item: any) => item.name && item.name.trim() !== '');
+            : Array.from({ length: 20 }, (_, i) => i + 1)
+                .map(i => ({
+                    id: `ing-${i}`,
+                    name: recipe[`strIngredient${i}`],
+                    amount: recipe[`strMeasure${i}`],
+                    image: recipe[`strIngredient${i}`] ? `https://www.themealdb.com/images/ingredients/${recipe[`strIngredient${i}`]}-Small.png` : null
+                }))
+                .filter((item: any) => item.name && item.name.trim() !== ''))
+        : [];
+
+    // Determine which tabs to show
+    const availableTabs = recipe?.source === 'user'
+        ? ['Ingredients', 'Instruction']
+        : ['Detail', 'Ingredients', 'Instruction'];
+
+    // Generate AI description for TheMealDB recipes
+    useEffect(() => {
+        if (recipe?.source === 'api' && activeTab === 'Detail' && !aiDescription && !loadingDescription) {
+            const fetchDescription = async () => {
+                setLoadingDescription(true);
+                try {
+                    const ingredientNames = displayIngredients.map((i: any) => i.name);
+                    const description = await generateRecipeDescription({
+                        title: recipe.strMeal,
+                        category: recipe.strCategory,
+                        area: recipe.strArea,
+                        ingredients: ingredientNames,
+                        imageUrl: recipe.strMealThumb,
+                    });
+                    console.log('=== AI DESCRIPTION START ===');
+                    console.log(description);
+                    console.log('=== AI DESCRIPTION END ===');
+                    setAiDescription(description);
+                } catch (error) {
+                    console.error('Error generating description:', error);
+                    setAiDescription('Une recette délicieuse à découvrir !');
+                } finally {
+                    setLoadingDescription(false);
+                }
+            };
+            fetchDescription();
+        }
+    }, [recipe, activeTab, aiDescription, loadingDescription]);
 
     const renderContent = () => {
         if (activeTab === 'Ingredients') {
@@ -156,7 +192,11 @@ export default function RecipeDetailScreen() {
                             <View key={item.id || index} style={styles.ingredientItem}>
                                 <View style={styles.ingredientLeft}>
                                     <View style={styles.ingredientImageContainer}>
-                                        <Image source={{ uri: item.image || displayImage }} style={styles.ingredientImage} contentFit="contain" />
+                                        <Image
+                                            source={item.image ? { uri: item.image } : defaultIngredientImage}
+                                            style={styles.ingredientImage}
+                                            contentFit="contain"
+                                        />
                                     </View>
                                     <Text style={styles.ingredientName}>{item.name}</Text>
                                 </View>
@@ -187,10 +227,18 @@ export default function RecipeDetailScreen() {
                     showsVerticalScrollIndicator={true}
                 >
                     <Text style={styles.bodyText}>
-                        {recipe.strArea ? ` Cuisine: ${recipe.strArea}` : ''}
-                        {recipe.strCategory ? `\n Category: ${recipe.strCategory}` : ''}
-                        {'\n\n'}
-                        An exquisite dish that pairs perfectly with the selected ingredients.
+                        {loadingDescription ? (
+                            '✨ Génération de la description avec l\'IA...'
+                        ) : aiDescription ? (
+                            aiDescription
+                        ) : (
+                            <>
+                                {recipe.strArea ? ` Cuisine: ${recipe.strArea}` : ''}
+                                {recipe.strCategory ? `\n Category: ${recipe.strCategory}` : ''}
+                                {'\n\n'}
+                                An exquisite dish that pairs perfectly with the selected ingredients.
+                            </>
+                        )}
                     </Text>
                 </ScrollView>
             );
@@ -199,56 +247,64 @@ export default function RecipeDetailScreen() {
 
     return (
         <View style={styles.container}>
-            {/* Header Overlay */}
-            <View style={[styles.header, { top: insets.top }]}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.iconButton}>
-                    <ArrowLeftIcon size={24} color={Colors.light.text} />
-                </TouchableOpacity>
-
-                <View style={styles.headerRight}>
-                    <TouchableOpacity
-                        style={[styles.iconButton, styles.likeButton, isLiked && styles.likedButton]}
-                        onPress={toggleLike}
-                    >
-                        <HeartSolid size={20} color={isLiked ? "#FF6B6B" : Colors.light.text} />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.iconButton}>
-                        <ArrowUpTrayIcon size={24} color={Colors.light.text} />
-                    </TouchableOpacity>
+            {(isLoading || !recipe) ? (
+                <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+                    <ActivityIndicator size="large" color={Colors.light.primary} />
                 </View>
-            </View>
+            ) : (
+                <>
+                    {/* Header Overlay */}
+                    <View style={[styles.header, { top: insets.top }]}>
+                        <TouchableOpacity onPress={() => router.back()} style={styles.iconButton}>
+                            <ArrowLeftIcon size={24} color={Colors.light.text} />
+                        </TouchableOpacity>
 
-            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                {/* Main Image Header */}
-                <View style={styles.imageHeader}>
-                    <Image source={{ uri: displayImage }} style={styles.mainImage} contentFit="cover" />
-                </View>
-
-                {/* Content Body */}
-                <View style={styles.contentBody}>
-                    {/* Title */}
-                    <Text style={styles.title}>{displayTitle}</Text>
-
-                    {/* Tabs */}
-                    <View style={styles.tabsContainer}>
-                        {['Detail', 'Ingredients', 'Instruction'].map((tab) => (
+                        <View style={styles.headerRight}>
                             <TouchableOpacity
-                                key={tab}
-                                style={[styles.tab, activeTab === tab && styles.activeTab]}
-                                onPress={() => setActiveTab(tab as any)}
+                                style={[styles.iconButton, styles.likeButton, isLiked && styles.likedButton]}
+                                onPress={toggleLike}
                             >
-                                <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
-                                    {tab}
-                                </Text>
+                                <HeartSolid size={20} color={isLiked ? "#FF6B6B" : Colors.light.text} />
                             </TouchableOpacity>
-                        ))}
+                            <TouchableOpacity style={styles.iconButton}>
+                                <ArrowUpTrayIcon size={24} color={Colors.light.text} />
+                            </TouchableOpacity>
+                        </View>
                     </View>
 
-                    {/* Content */}
-                    {renderContent()}
-                </View>
+                    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                        {/* Main Image Header */}
+                        <View style={styles.imageHeader}>
+                            <Image source={{ uri: displayImage }} style={styles.mainImage} contentFit="cover" />
+                        </View>
 
-            </ScrollView>
+                        {/* Content Body */}
+                        <View style={styles.contentBody}>
+                            {/* Title */}
+                            <Text style={styles.title}>{displayTitle}</Text>
+
+                            {/* Tabs */}
+                            <View style={styles.tabsContainer}>
+                                {availableTabs.map((tab) => (
+                                    <TouchableOpacity
+                                        key={tab}
+                                        style={[styles.tab, activeTab === tab && styles.activeTab]}
+                                        onPress={() => setActiveTab(tab as any)}
+                                    >
+                                        <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
+                                            {tab}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            {/* Content */}
+                            {renderContent()}
+                        </View>
+
+                    </ScrollView>
+                </>
+            )}
         </View>
     );
 }

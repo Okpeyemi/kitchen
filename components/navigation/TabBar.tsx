@@ -92,24 +92,17 @@ export function TabBar({ state, descriptors, navigation }: MaterialTopTabBarProp
 const styles = StyleSheet.create({
     container: {
         position: 'absolute',
-        bottom: 30, // Floating effect
-        left: 16, // Reduced margin to fit more items
-        right: 16,
+        bottom: 0, // Fixed at bottom
+        left: 0,
+        right: 0,
         flexDirection: 'row',
         backgroundColor: '#1F2937', // Dark gray/blackish from design
-        borderRadius: 32,
+        borderRadius: 0, // No rounded corners
         height: 64,
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 8, // Reduced padding
-        shadowColor: '#000',
-        shadowOffset: {
-            width: 0,
-            height: 4,
-        },
-        shadowOpacity: 0.3,
-        shadowRadius: 4.65,
-        elevation: 8,
+        paddingHorizontal: 8,
+        paddingBottom: 0, // Safe area handled separately if needed
     },
     tabItem: {
         flex: 1,
