@@ -10,7 +10,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import {
     ArrowLeftIcon,
@@ -33,13 +33,16 @@ type Ingredient = {
 type CreationMode = 'select' | 'manual' | 'fromImage' | 'recipeBook';
 
 export default function CreateRecipeScreen() {
+    // ... hooks
     const router = useRouter();
     const params = useLocalSearchParams();
     const isFridgeMode = params.mode === 'fridge';
+    const isEditMode = params.mode === 'edit';
+    const editId = params.id as string;
     const { user } = useAuth();
 
     // Creation mode state (only for recipe mode)
-    const [creationMode, setCreationMode] = useState<CreationMode>('select');
+    const [creationMode, setCreationMode] = useState<CreationMode>(isEditMode ? 'manual' : 'select');
 
     // Recipe form state
     const [title, setTitle] = useState('');
@@ -53,7 +56,8 @@ export default function CreateRecipeScreen() {
     // AI analysis state
     const [analyzing, setAnalyzing] = useState(false);
 
-    // Edit mode for ingredients and instructions (false = view mode, true = edit mode)
+    // Edit mode for ingredients and instructions UI (false = view mode, true = edit mode)
+    // For editing an existing recipe, start in edit mode by default
     const [editMode, setEditMode] = useState(true);
 
     // Recipe book state
@@ -61,6 +65,47 @@ export default function CreateRecipeScreen() {
     const [pdfUri, setPdfUri] = useState<string | null>(null);
     const [pdfName, setPdfName] = useState<string | null>(null);
 
+    // Fetch existing recipe for editing
+    useEffect(() => {
+        if (isEditMode && editId && user) {
+            fetchRecipeDetails();
+        }
+    }, [isEditMode, editId, user]);
+
+    const fetchRecipeDetails = async () => {
+        try {
+            setLoading(true);
+            const { data, error } = await supabase
+                .from('user_recipes')
+                .select('*')
+                .eq('id', editId)
+                .single();
+
+            if (error) throw error;
+            if (data) {
+                setTitle(data.title);
+                setInstructions(data.instruction || ''); // Note: column name is 'instruction'
+                setImage(data.image_url);
+
+                // Map ingredients from JSON
+                if (Array.isArray(data.ingredients)) {
+                    setIngredients(data.ingredients.map((ing: any, idx: number) => ({
+                        id: ing.id || idx.toString(),
+                        name: ing.name,
+                        amount: ing.amount
+                    })));
+                }
+            }
+        } catch (e: any) {
+            Alert.alert("Error", "Failed to load recipe details");
+            console.error(e);
+            router.back();
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // ... pickers (pickImage, etc)
     const pickImage = async () => {
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -209,10 +254,6 @@ export default function CreateRecipeScreen() {
 
 
     const [addItemModalVisible, setAddItemModalVisible] = useState(false);
-    // Use the FridgeItem type defined in the modal or locally compatible type
-    // We already have Ingredient type locally which is close, but let's extend or adapt
-    // Ingredient has { id, name, amount }, we need { id, name, quantity, unit, thumbUrl }
-    // Let's adapt state to flexible type
     const [fridgeItems, setFridgeItems] = useState<any[]>([]);
 
     const handleAddItem = (item: any) => {
@@ -251,6 +292,7 @@ export default function CreateRecipeScreen() {
 
         try {
             if (isFridgeMode) {
+                // ... fridge insert logic (unchanged)
                 // Bulk insert into user_fridge
                 const itemsToInsert = fridgeItems.map(item => ({
                     user_id: user.id,
@@ -266,27 +308,42 @@ export default function CreateRecipeScreen() {
                 router.replace('/(tabs)/fridge');
 
             } else {
-                // Existing Recipe Creation Logic
+                // Recipe Creation/Update Logic
                 let imageUrl = image;
                 const validIngredients = ingredients.filter(i => i.name.trim() !== '');
 
-                // 1. Upload Image if changed/selected
+                // 1. Upload Image if changed/selected and local
                 if (image && !image.startsWith('http')) {
                     imageUrl = await uploadImage(image);
                 }
 
-                // 2. Insert Recipe
-                const { error } = await supabase.from('user_recipes').insert({
+                const recipeData = {
                     user_id: user.id,
                     title,
                     instruction: instructions,
                     ingredients: validIngredients,
                     image_url: imageUrl,
-                });
+                };
 
-                if (error) throw error;
+                if (isEditMode && editId) {
+                    // UPDATE existing recipe
+                    const { error } = await supabase
+                        .from('user_recipes')
+                        .update(recipeData)
+                        .eq('id', editId);
 
-                Alert.alert('Success', 'Recipe created successfully!');
+                    if (error) throw error;
+                    Alert.alert('Success', 'Recipe updated successfully!');
+                } else {
+                    // INSERT new recipe
+                    const { error } = await supabase
+                        .from('user_recipes')
+                        .insert(recipeData);
+
+                    if (error) throw error;
+                    Alert.alert('Success', 'Recipe created successfully!');
+                }
+
                 router.replace('/(tabs)/recipes');
             }
         } catch (e: any) {
@@ -296,7 +353,6 @@ export default function CreateRecipeScreen() {
         }
     };
 
-    // Save recipe book (PDF)
     const handleSaveRecipeBook = async () => {
         if (!user) {
             Alert.alert('Error', 'You must be logged in');
@@ -355,7 +411,9 @@ export default function CreateRecipeScreen() {
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <ArrowLeftIcon size={24} color={Colors.light.text} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>{isFridgeMode ? 'Fill Your Fridge' : 'Create Recipe'}</Text>
+                <Text style={styles.headerTitle}>
+                    {isFridgeMode ? 'Fill Your Fridge' : (isEditMode ? 'Update Recipe' : 'Create Recipe')}
+                </Text>
             </View>
 
             <ScrollView contentContainerStyle={styles.container}>
@@ -588,7 +646,7 @@ export default function CreateRecipeScreen() {
                                 </View>
 
                                 <Button
-                                    title={loading ? "Saving..." : "Create Recipe"}
+                                    title={loading ? "Saving..." : (isEditMode ? "Update Recipe" : "Create Recipe")}
                                     onPress={handleCreate}
                                     style={[styles.createBtn, loading && { opacity: 0.5 }] as any}
                                 />

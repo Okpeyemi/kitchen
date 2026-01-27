@@ -11,7 +11,7 @@ import {
     ArrowLeftIcon,
     ArrowUpTrayIcon
 } from 'react-native-heroicons/outline';
-import { HeartIcon as HeartSolid } from 'react-native-heroicons/solid';
+import { HeartIcon as HeartSolid, SparklesIcon } from 'react-native-heroicons/solid';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function RecipeDetailScreen() {
@@ -207,14 +207,23 @@ export default function RecipeDetailScreen() {
                 </View>
             );
         } else if (activeTab === 'Instruction') {
+            const isAiGenerated = displayInstructions?.includes('<!--AI-->');
+            const cleanInstructions = displayInstructions?.replace('<!--AI-->', '').trim();
+
             return (
                 <ScrollView
                     style={[styles.textContainer, styles.scrollableTextContainer]}
                     nestedScrollEnabled={true}
                     showsVerticalScrollIndicator={true}
                 >
+                    {isAiGenerated && (
+                        <View style={styles.aiLabelContainer}>
+                            <SparklesIcon size={16} color={Colors.light.primary} />
+                            <Text style={styles.aiLabelText}>Généré par IA</Text>
+                        </View>
+                    )}
                     <Text style={styles.bodyText}>
-                        {displayInstructions}
+                        {cleanInstructions}
                     </Text>
                     <Text></Text>
                 </ScrollView>
@@ -478,5 +487,23 @@ const styles = StyleSheet.create({
         color: '#6B7280',
         paddingBottom: 20,
         lineHeight: 22,
+    },
+    aiLabelContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: '#F0FDF4', // Light green bg
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        borderRadius: 20,
+        alignSelf: 'flex-start',
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: '#DCFCE7',
+    },
+    aiLabelText: {
+        fontFamily: Fonts.medium,
+        fontSize: 12,
+        color: Colors.light.primary,
     },
 });

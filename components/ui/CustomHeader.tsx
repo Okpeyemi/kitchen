@@ -5,17 +5,18 @@ import { Image } from 'expo-image';
 import { useFocusEffect, usePathname, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native';
-import { BellIcon, PencilSquareIcon, PlusIcon } from 'react-native-heroicons/outline';
+import { BellIcon, ChevronLeftIcon, Cog6ToothIcon, PencilSquareIcon, PlusIcon } from 'react-native-heroicons/outline';
 
 type CustomHeaderProps = {
     variant?: 'home' | 'profile' | 'standard';
     title?: string;
     style?: ViewStyle;
     showPlusButton?: boolean;
+    hideBackButton?: boolean;
     rightAction?: React.ReactNode; // New prop for custom action
 };
 
-export function CustomHeader({ variant = 'standard', title, style, showPlusButton = false, rightAction }: CustomHeaderProps) {
+export function CustomHeader({ variant = 'standard', title, style, showPlusButton = false, hideBackButton = true, rightAction }: CustomHeaderProps) {
     // ... (existing logic)
     const router = useRouter();
     const pathname = usePathname();
@@ -78,6 +79,12 @@ export function CustomHeader({ variant = 'standard', title, style, showPlusButto
         </TouchableOpacity>
     );
 
+    const SettingsButton = () => (
+        <TouchableOpacity style={styles.notificationButton} onPress={() => router.push('/profile')}>
+            <Cog6ToothIcon size={24} color={Colors.light.text} />
+        </TouchableOpacity>
+    );
+
     if (variant === 'home') {
         return (
             <>
@@ -91,10 +98,11 @@ export function CustomHeader({ variant = 'standard', title, style, showPlusButto
                         <Text style={styles.userName}>Hello, Chef {userName}!</Text>
                     </View>
                     <View style={styles.rightActions}>
+                        <PlusButton />
                         <TouchableOpacity style={styles.notificationButton}>
                             <BellIcon size={24} color={Colors.light.text} />
                         </TouchableOpacity>
-                        <PlusButton />
+                        <SettingsButton />
                     </View>
                 </View>
                 <CreateSelectionModal visible={modalVisible} onClose={() => setModalVisible(false)} />
@@ -105,7 +113,7 @@ export function CustomHeader({ variant = 'standard', title, style, showPlusButto
     if (variant === 'profile') {
         return (
             <View style={[styles.header, style]}>
-                <Text style={styles.headerTitle}>{title || 'Profile'}</Text>
+                <Text style={styles.headerTitle}>{title || 'Settings'}</Text>
                 <TouchableOpacity
                     style={styles.notificationButton}
                     onPress={() => router.push('/edit-profile')}
@@ -119,16 +127,24 @@ export function CustomHeader({ variant = 'standard', title, style, showPlusButto
     // Standard variant
     return (
         <View style={[styles.header, style]}>
-            <Text style={styles.headerTitle}>{title}</Text>
+            <View style={styles.leftContainer}>
+                {!hideBackButton && (
+                    <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                        <ChevronLeftIcon size={24} color={Colors.light.text} />
+                    </TouchableOpacity>
+                )}
+                <Text style={styles.headerTitle}>{title}</Text>
+            </View>
             <View style={styles.rightActions}>
                 {rightAction ? (
                     rightAction
                 ) : (
                     <>
+                        {showPlusButton && <PlusButton />}
                         <TouchableOpacity style={styles.notificationButton}>
                             <BellIcon size={24} color={Colors.light.text} />
                         </TouchableOpacity>
-                        {showPlusButton && <PlusButton />}
+                        <SettingsButton />
                     </>
                 )}
             </View>
@@ -145,6 +161,15 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 24,
         paddingVertical: 16,
+    },
+    leftContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    backButton: {
+        padding: 4,
+        marginRight: 4,
     },
     headerTitle: {
         fontFamily: Fonts.title,
@@ -169,7 +194,7 @@ const styles = StyleSheet.create({
     rightActions: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12, // Space between plus and bell
+        gap: 20,
     },
     notificationButton: {
         justifyContent: 'center',

@@ -3,13 +3,13 @@ import { CustomHeader } from '@/components/ui/CustomHeader';
 import { Colors, Fonts } from '@/constants/theme';
 import { useAuth } from '@/ctx/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { filterByArea, filterByCategory, filterByIngredient, MealPreview, searchMealsByName } from '@/lib/themealdb';
+import { filterByArea, filterByCategory, filterByIngredient, searchMealsByName } from '@/lib/themealdb';
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { AdjustmentsHorizontalIcon, HeartIcon, MagnifyingGlassIcon } from 'react-native-heroicons/outline';
+import { Alert, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { AdjustmentsHorizontalIcon, MagnifyingGlassIcon, PencilSquareIcon, TrashIcon } from 'react-native-heroicons/outline';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type FilterType = 'category' | 'area' | 'ingredient';
@@ -20,137 +20,197 @@ type UserRecipe = {
     id: string;
     title: string;
     image_url: string | null;
+    created_at?: string;
 };
 
-const RecipeCard = ({ title, image }: { title: string, image: any }) => (
+type RecipeBook = {
+    id: string;
+    title: string;
+    pdf_url: string;
+    created_at: string;
+    user_id: string;
+};
+
+const RecipeCard = ({ title, image, onDelete, onEdit }: { title: string, image: any, onDelete?: () => void, onEdit?: () => void }) => (
     <View style={styles.cardContainer}>
         <Image source={image} style={styles.cardImage} contentFit="cover" />
-        <TouchableOpacity style={styles.likeButton}>
-            <HeartIcon size={24} color="#FF6B6B" />
-        </TouchableOpacity>
+
+        {/* Action Buttons Overlay */}
+        {(onDelete || onEdit) && (
+            <View style={styles.actionButtons}>
+                {onEdit && (
+                    <TouchableOpacity style={styles.actionButton} onPress={onEdit}>
+                        <PencilSquareIcon size={16} color={Colors.light.primary} />
+                    </TouchableOpacity>
+                )}
+                {onDelete && (
+                    <TouchableOpacity style={[styles.actionButton, styles.deleteButton]} onPress={onDelete}>
+                        <TrashIcon size={16} color="#EF4444" />
+                    </TouchableOpacity>
+                )}
+            </View>
+        )}
+
         <View style={styles.cardOverlay}>
-            <Text style={styles.cardTitle}>{title}</Text>
+            <Text style={styles.cardTitle} numberOfLines={2}>{title}</Text>
         </View>
     </View>
 );
 
 export default function RecipesScreen() {
     const router = useRouter();
-    const params = useLocalSearchParams();
     const { user } = useAuth();
-    const initialSearch = typeof params.search === 'string' ? params.search : '';
-    const [search, setSearch] = useState(initialSearch);
-    const [filterModalVisible, setFilterModalVisible] = useState(false);
     const [activeTab, setActiveTab] = useState<TabType>('world');
-
-    // Update search if params change (e.g. navigation from Home)
-    useEffect(() => {
-        if (params.search && typeof params.search === 'string') {
-            setSearch(params.search);
-        }
-    }, [params.search]);
+    const [search, setSearch] = useState('');
+    const [filterModalVisible, setFilterModalVisible] = useState(false);
     const [activeFilter, setActiveFilter] = useState<ActiveFilter>(null);
+    const [refreshing, setRefreshing] = useState(false);
 
-    type RecipeBook = {
-        id: string;
-        title: string;
-        pdf_url: string;
-    };
+    // World Recipes Query
+    const { data: recipes, isLoading: isLoadingWorld, refetch: refetchWorld } = useQuery({
+        queryKey: ['recipes', search, activeFilter],
+        queryFn: async () => {
+            if (activeFilter) {
+                switch (activeFilter.type) {
+                    case 'category': return filterByCategory(activeFilter.value);
+                    case 'area': return filterByArea(activeFilter.value);
+                    case 'ingredient': return filterByIngredient(activeFilter.value);
+                }
+            }
+            return searchMealsByName(search);
+        },
+    });
 
-    type DisplayItem = (UserRecipe | RecipeBook) & { type: 'recipe' | 'book' };
+    // User Recipes & Books
+    const [userRecipes, setUserRecipes] = useState<UserRecipe[]>([]);
+    const [userBooks, setUserBooks] = useState<any[]>([]);
+    const [isLoadingUser, setIsLoadingUser] = useState(false);
 
-    // Query for user recipes
-    const { data: userRecipes, isLoading: isLoadingUserRecipes, refetch: refetchUserRecipes } = useQuery({
-        queryKey: ['userRecipes', user?.id],
-        queryFn: async (): Promise<UserRecipe[]> => {
-            if (!user) return [];
+    const fetchUserRecipes = async () => {
+        if (!user) return;
+        try {
             const { data, error } = await supabase
                 .from('user_recipes')
-                .select('id, title, image_url')
+                .select('*')
                 .eq('user_id', user.id)
                 .order('created_at', { ascending: false });
+
             if (error) throw error;
-            return data || [];
-        },
-        enabled: activeTab === 'my' && !!user,
-    });
-
-    // Query for user recipe books
-    const { data: userBooks, isLoading: isLoadingUserBooks, refetch: refetchUserBooks } = useQuery({
-        queryKey: ['userBooks', user?.id],
-        queryFn: async (): Promise<RecipeBook[]> => {
-            if (!user) return [];
-            const { data, error } = await supabase
-                .from('recipe_books')
-                .select('id, title, pdf_url')
-                .eq('user_id', user.id)
-                .order('created_at', { ascending: false });
-            if (error) throw error;
-            return data || [];
-        },
-        enabled: activeTab === 'my' && !!user,
-    });
-
-    // Merge and sort items for "My Recipes"
-    const myItems: DisplayItem[] = [
-        ...(userRecipes || []).map(r => ({ ...r, type: 'recipe' as const })),
-        ...(userBooks || []).map(b => ({ ...b, type: 'book' as const }))
-    ]; // Note: Ideally define a combined sort if dates were available for both, simplistic merge for now or sort by ID/fetched order
-
-    // Search query
-    const { data: searchResults, isLoading: isSearching, refetch: refetchSearch } = useQuery({
-        queryKey: ['recipes', search],
-        queryFn: () => searchMealsByName(search),
-        enabled: !activeFilter || search.length > 0, // Disable if filter is active without search
-    });
-
-    // Filter query
-    const { data: filteredResults, isLoading: isFiltering, refetch: refetchFiltered } = useQuery({
-        queryKey: ['filteredRecipes', activeFilter?.type, activeFilter?.value],
-        queryFn: async (): Promise<MealPreview[]> => {
-            if (!activeFilter) return [];
-            switch (activeFilter.type) {
-                case 'category':
-                    return filterByCategory(activeFilter.value);
-                case 'area':
-                    return filterByArea(activeFilter.value);
-                case 'ingredient':
-                    return filterByIngredient(activeFilter.value);
-                default:
-                    return [];
-            }
-        },
-        enabled: !!activeFilter && search.length === 0,
-    });
-
-    const onRefresh = async () => {
-        if (activeTab === 'my') {
-            await Promise.all([refetchUserRecipes(), refetchUserBooks()]);
-        } else {
-            if (search.length > 0) {
-                await refetchSearch();
-            } else if (activeFilter) {
-                await refetchFiltered();
-            } else {
-                await refetchSearch();
-            }
+            setUserRecipes(data || []);
+        } catch (error) {
+            console.error('Error fetching user recipes:', error);
         }
     };
 
-    // Determine which recipes to display
-    const recipes = search.length > 0 ? searchResults : activeFilter ? filteredResults : searchResults;
-    const isLoading = activeTab === 'my' ? (isLoadingUserRecipes || isLoadingUserBooks) : (search.length > 0 ? isSearching : activeFilter ? isFiltering : isSearching);
+    const fetchUserBooks = async () => {
+        if (!user) return;
+        try {
+            const { data, error } = await supabase
+                .from('recipe_books')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            setUserBooks(data || []);
+        } catch (error) {
+            console.error('Error fetching user books:', error);
+        }
+    };
+
+    const fetchUserData = async () => {
+        setIsLoadingUser(true);
+        await Promise.all([fetchUserRecipes(), fetchUserBooks()]);
+        setIsLoadingUser(false);
+    };
+
+    useEffect(() => {
+        if (activeTab === 'my') {
+            fetchUserData();
+        }
+    }, [activeTab, user]);
+
+    const onRefresh = async () => {
+        setRefreshing(true);
+        if (activeTab === 'world') {
+            await refetchWorld();
+        } else {
+            await fetchUserData();
+        }
+        setRefreshing(false);
+    };
 
     const handleApplyFilter = (filter: ActiveFilter) => {
         setActiveFilter(filter);
+        setFilterModalVisible(false);
     };
 
-    // Import Linking for PDF
-    // Note: ensure Linking is imported from 'react-native' at top of file. (I will add it if missing)
+    // Combined/Sorted items for My Recipes
+    const myItems = [
+        ...userRecipes.map(r => ({ ...r, type: 'recipe' })),
+        ...userBooks.map(b => ({ ...b, type: 'book' }))
+    ].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    const isLoading = activeTab === 'world' ? isLoadingWorld : isLoadingUser;
+
+    const refetchUserRecipes = fetchUserRecipes;
+    const refetchUserBooks = fetchUserBooks;
+    const handleDeleteRecipe = (id: string, title: string) => {
+        Alert.alert(
+            "Delete Recipe",
+            `Are you sure you want to delete "${title}"?`,
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            const { error } = await supabase.from('user_recipes').delete().eq('id', id);
+                            if (error) throw error;
+                            refetchUserRecipes();
+                        } catch (e: any) {
+                            Alert.alert("Error", e.message);
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    const handleDeleteBook = (id: string, title: string) => {
+        Alert.alert(
+            "Delete Recipe Book",
+            `Are you sure you want to delete "${title}"?`,
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            const { error } = await supabase.from('recipe_books').delete().eq('id', id);
+                            if (error) throw error;
+                            refetchUserBooks();
+                        } catch (e: any) {
+                            Alert.alert("Error", e.message);
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    // Edit handler
+    const handleEditRecipe = (id: string) => {
+        router.push(`/create?mode=edit&id=${id}`);
+    };
+
+    // ... queries and helper functions
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            {/* Header */}
+            {/* ... Header & Tabs ... */}
             <CustomHeader title="Recipes" showPlusButton />
             <View style={styles.container}>
                 {/* Tabs */}
@@ -255,6 +315,7 @@ export default function RecipesScreen() {
                                             <RecipeCard
                                                 title={`📚 ${book.title}`}
                                                 image={require('@/assets/images/books.png')}
+                                                onDelete={() => handleDeleteBook(book.id, book.title)}
                                             />
                                         </TouchableOpacity>
                                     </View>
@@ -267,6 +328,8 @@ export default function RecipesScreen() {
                                             <RecipeCard
                                                 title={recipe.title}
                                                 image={recipe.image_url || 'https://via.placeholder.com/300x200?text=No+Image'}
+                                                onDelete={() => handleDeleteRecipe(recipe.id, recipe.title)}
+                                                onEdit={() => handleEditRecipe(recipe.id)}
                                             />
                                         </TouchableOpacity>
                                     </View>
@@ -311,6 +374,7 @@ export default function RecipesScreen() {
 }
 
 const styles = StyleSheet.create({
+    // ... existing styles
     safeArea: {
         flex: 1,
         backgroundColor: Colors.light.background,
@@ -472,6 +536,29 @@ const styles = StyleSheet.create({
         right: 10,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    actionButtons: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        flexDirection: 'row',
+        gap: 8,
+    },
+    actionButton: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 1,
+        elevation: 2,
+    },
+    deleteButton: {
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
     },
     emptyContainer: {
         flex: 1,

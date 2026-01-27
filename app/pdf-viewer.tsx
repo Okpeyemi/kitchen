@@ -33,6 +33,7 @@ export default function PdfViewerScreen() {
             <CustomHeader
                 title={title || 'Recipe Book'}
                 showPlusButton={false}
+                hideBackButton={false}
                 rightAction={
                     <TouchableOpacity onPress={openExternal} style={styles.headerButton}>
                         <ArrowTopRightOnSquareIcon size={24} color={Colors.light.text} />
@@ -62,6 +63,7 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: Colors.light.background,
+        paddingTop: 30,
     },
     webviewContainer: {
         flex: 1,

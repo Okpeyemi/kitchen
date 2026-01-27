@@ -28,20 +28,24 @@ export async function analyzeRecipeImage(imageUri: string): Promise<ExtractedRec
     const extension = imageUri.split('.').pop()?.toLowerCase() || 'jpeg';
     const mimeType = extension === 'png' ? 'image/png' : 'image/jpeg';
 
-    const prompt = `Analyze this recipe image and extract the following information in JSON format:
+    const prompt = `Analyze this image which is either a recipe (text) OR a photo of a dish (food).
+
+1. If it's a specific recipe text (e.g. from a book or screen), extract the title, ingredients, and instructions exactly as written.
+2. If it's a photo of a prepared dish, IDENTIFY the dish. Then, USE THE SEARCH TOOL to find a highly rated, authentic recipe for this specific dish. Deduce the ingredients and instructions from the search results to ensure accuracy (cooking times, temperatures, specific spices).
+
+Return the result in this JSON format:
 {
   "title": "Recipe name",
   "ingredients": [
     { "name": "ingredient name", "amount": "quantity with unit" }
   ],
-  "instructions": "Step by step instructions as a single string"
+  "instructions": "Step by step instructions as a single string",
+  "is_inferred": boolean (true if from food photo, false if from text)
 }
 
 Important:
-- If the image is not a recipe, return an error message in the title field
-- Extract all visible ingredients with their quantities
-- Format instructions as numbered steps
-- Respond ONLY with valid JSON, no markdown or extra text`;
+- For food photos: provide realistic quantities and standard cooking steps based on SEARCH RESULTS.
+- Respond ONLY with valid JSON, no markdown or extra text.`;
 
     const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
         method: 'POST',
@@ -61,6 +65,16 @@ Important:
                         },
                     ],
                 },
+            ],
+            tools: [
+                {
+                    google_search_retrieval: {
+                        dynamic_retrieval_config: {
+                            mode: "MODE_DYNAMIC",
+                            dynamic_threshold: 0.7,
+                        }
+                    }
+                }
             ],
             generationConfig: {
                 temperature: 0.1,
@@ -104,10 +118,17 @@ Important:
 
     try {
         const parsed = JSON.parse(jsonString);
+        let instructions = parsed.instructions || '';
+
+        // Append marker if inferred from photo
+        if (parsed.is_inferred) {
+            instructions += '\n\n<!--AI-->';
+        }
+
         return {
             title: parsed.title || 'Untitled Recipe',
             ingredients: parsed.ingredients || [],
-            instructions: parsed.instructions || '',
+            instructions: instructions,
         };
     } catch (e) {
         console.error('Failed to parse Gemini response:', jsonString);
