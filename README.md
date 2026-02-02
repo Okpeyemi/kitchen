@@ -1,46 +1,60 @@
-# Welcome to your Expo app 👋
+# Kitchen 🍳
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+**Kitchen** is an intelligent culinary companion powered by AI that transforms how you discover, organize, and cook recipes. Whether you're snapping a photo of a delicious dish or pasting a link from a cooking video, Kitchen helps you turn inspiration into a meal on your table.
 
-## Get started
+## 🚀 Key Features
 
-1. Install dependencies
+*   **📸 AI Video & Image Analysis**: Snap a photo of any dish or raw ingredients. Our integration with **Google Gemini AI** identifies the food and generates a complete recipe with ingredients and step-by-step instructions.
+*   **🔗 Smart Link Extraction**: Paste a URL from a cooking blog or video. Kitchen extracts the structured recipe details instantly.
+*   **🧊 Digital Fridge & Smart Inventory**: Keep track of what you have at home. The app automatically compares recipe requirements with your specific fridge inventory, highlighting exactly what you need to buy and what you already own.
+*   **🔥 Trending & Discover**: Explore trending recipes and categories powered by TheMealDB.
+*   **📱 Cross-Platform**: Built with **Expo** and **React Native** for a seamless experience on iOS and Android.
 
-   ```bash
-   npm install
-   ```
+## 🛠️ Tech Stack
 
-2. Start the app
+*   **Framework**: [Expo](https://expo.dev/) (React Native)
+*   **AI Engine**: [Google Gemini](https://deepmind.google/technologies/gemini/) (gemini-3-flash-preview)
+*   **Backend/Auth**: [Supabase](https://supabase.com/)
+*   **Data Fetching**: TanStack Query
+*   **Routing**: Expo Router
+*   **Styling**: React Native StyleSheet with custom theme constants
 
-   ```bash
-   npx expo start
-   ```
+## 🏁 Getting Started
 
-In the output, you'll find options to open the app in a
+1.  **Clone the repository**
+    ```bash
+    git clone https://github.com/yourusername/kitchen.git
+    cd kitchen
+    ```
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+2.  **Install dependencies**
+    ```bash
+    npm install
+    ```
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+3.  **Environment Setup**
+    Create a `.env` file in the root directory and add your API keys:
+    ```env
+    EXPO_PUBLIC_GEMINI_API_KEY=your_gemini_api_key
+    EXPO_PUBLIC_SUPABASE_URL=your_supabase_url
+    EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+    ```
 
-## Get a fresh project
+4.  **Run the app**
+    ```bash
+    npx expo start
+    ```
 
-When you're ready, run:
+## 📱 Project Structure
 
-```bash
-npm run reset-project
-```
+*   `app/`: Main application screens and routing (Expo Router).
+*   `components/`: Reusable UI components.
+*   `lib/`: Helper functions, including `gemini.ts` for AI logic.
+*   `constants/`: Theme colors, fonts, and global configurations.
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## 🤝 Contributing
 
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Join the community
 

@@ -1,5 +1,5 @@
 import { Colors, Fonts } from '@/constants/theme';
-import { generateRecipeDescription } from '@/lib/gemini';
+import { formatRecipeInstructions, generateRecipeDescription } from '@/lib/gemini';
 import { supabase } from '@/lib/supabase';
 import { getRecipeById } from '@/lib/themealdb';
 import { useQuery } from '@tanstack/react-query';
@@ -12,6 +12,7 @@ import {
     ArrowUpTrayIcon
 } from 'react-native-heroicons/outline';
 import { HeartIcon as HeartSolid, SparklesIcon } from 'react-native-heroicons/solid';
+import Markdown from 'react-native-markdown-display';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function RecipeDetailScreen() {
@@ -22,6 +23,8 @@ export default function RecipeDetailScreen() {
     const [isLiked, setIsLiked] = useState(false);
     const [aiDescription, setAiDescription] = useState<string | null>(null);
     const [loadingDescription, setLoadingDescription] = useState(false);
+    const [formattedInstructions, setFormattedInstructions] = useState<string | null>(null);
+    const [loadingInstructions, setLoadingInstructions] = useState(false);
     const insets = useSafeAreaInsets();
 
     const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
@@ -161,6 +164,31 @@ export default function RecipeDetailScreen() {
         }
     }, [recipe, activeTab, aiDescription, loadingDescription]);
 
+    // Format instructions with AI
+    useEffect(() => {
+        if (activeTab === 'Instruction' && !formattedInstructions && !loadingInstructions && recipe) {
+            const displayInstructions = recipe?.source === 'user' ? recipe.instruction : recipe?.strInstructions;
+            if (displayInstructions) {
+                const formatWithAi = async () => {
+                    setLoadingInstructions(true);
+                    try {
+                        const formatted = await formatRecipeInstructions(displayInstructions);
+                        console.log('=== AI INSTRUCTIONS START ===');
+                        console.log(formatted);
+                        console.log('=== AI INSTRUCTIONS END ===');
+                        setFormattedInstructions(formatted);
+                    } catch (error) {
+                        console.error('Error formatting instructions:', error);
+                        // Fallback will use raw instructions in render
+                    } finally {
+                        setLoadingInstructions(false);
+                    }
+                };
+                formatWithAi();
+            }
+        }
+    }, [recipe, activeTab, formattedInstructions, loadingInstructions]);
+
     const renderContent = () => {
         if (activeTab === 'Ingredients') {
             return (
@@ -222,9 +250,19 @@ export default function RecipeDetailScreen() {
                             <Text style={styles.aiLabelText}>Généré par IA</Text>
                         </View>
                     )}
-                    <Text style={styles.bodyText}>
-                        {cleanInstructions}
-                    </Text>
+
+                    {loadingInstructions ? (
+                        <View style={styles.aiLoadingContainer}>
+                            <ActivityIndicator size="small" color={Colors.light.primary} />
+                            <Text style={styles.aiLoadingText}>Optimisation des instructions par IA...</Text>
+                        </View>
+                    ) : (
+                        <Markdown
+                            style={markdownStyles}
+                        >
+                            {formattedInstructions || cleanInstructions}
+                        </Markdown>
+                    )}
                     <Text></Text>
                 </ScrollView>
             );
@@ -505,5 +543,57 @@ const styles = StyleSheet.create({
         fontFamily: Fonts.medium,
         fontSize: 12,
         color: Colors.light.primary,
+    },
+    aiLoadingContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 16,
+    },
+    aiLoadingText: {
+        fontFamily: Fonts.medium,
+        fontSize: 14,
+        color: Colors.light.primary,
+        fontStyle: 'italic',
+    },
+});
+
+const markdownStyles = StyleSheet.create({
+    body: {
+        fontFamily: Fonts.regular,
+        fontSize: 14,
+        color: '#6B7280',
+        lineHeight: 22,
+    },
+    heading1: {
+        fontFamily: Fonts.bold,
+        fontSize: 20,
+        color: Colors.light.text,
+        marginTop: 10,
+        marginBottom: 10,
+    },
+    heading2: {
+        fontFamily: Fonts.bold,
+        fontSize: 18,
+        color: Colors.light.text,
+        marginTop: 10,
+        marginBottom: 10,
+    },
+    strong: {
+        fontFamily: Fonts.bold,
+        color: Colors.light.text,
+    },
+    list_item: {
+        fontFamily: Fonts.regular,
+        fontSize: 14,
+        color: '#6B7280',
+        marginTop: 5,
+        marginBottom: 5,
+    },
+    bullet_list: {
+        marginBottom: 10,
+    },
+    ordered_list: {
+        marginBottom: 10,
     },
 });

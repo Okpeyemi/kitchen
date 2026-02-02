@@ -113,7 +113,12 @@ export function CustomHeader({ variant = 'standard', title, style, showPlusButto
     if (variant === 'profile') {
         return (
             <View style={[styles.header, style]}>
-                <Text style={styles.headerTitle}>{title || 'Settings'}</Text>
+                <View style={styles.leftContainer}>
+                    <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                        <ChevronLeftIcon size={24} color={Colors.light.text} />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>{title || 'Settings'}</Text>
+                </View>
                 <TouchableOpacity
                     style={styles.notificationButton}
                     onPress={() => router.push('/edit-profile')}

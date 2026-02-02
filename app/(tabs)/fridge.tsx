@@ -130,8 +130,8 @@ export default function FridgeScreen() {
                     </View>
                 ) : (
                     <View style={styles.grid}>
-                        {fridgeItems?.map((item) => (
-                            <View key={item.id} style={styles.card}>
+                        {fridgeItems?.map((item, index) => (
+                            <View key={`${item.id}-${index}`} style={styles.card}>
                                 <Image
                                     source={{ uri: item.thumbUrl }}
                                     style={styles.cardImage}
