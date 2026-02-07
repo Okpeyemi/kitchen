@@ -5,13 +5,16 @@ import { Colors, Fonts } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { EyeIcon, EyeSlashIcon } from 'react-native-heroicons/outline';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ResetPasswordScreen() {
     const router = useRouter();
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [loading, setLoading] = useState(false);
 
     const handleResetPassword = async () => {
@@ -52,21 +55,47 @@ export default function ResetPasswordScreen() {
                 </Text>
 
                 <View style={styles.form}>
-                    <Input
-                        label="New password"
-                        placeholder="password"
-                        value={password}
-                        onChangeText={setPassword}
-                        secureTextEntry
-                    />
+                    <View>
+                        <Input
+                            label="New password"
+                            placeholder="password"
+                            value={password}
+                            onChangeText={setPassword}
+                            secureTextEntry={!showPassword}
+                            style={{ paddingRight: 40 }}
+                        />
+                        <TouchableOpacity
+                            onPress={() => setShowPassword(!showPassword)}
+                            style={styles.eyeIcon}
+                        >
+                            {showPassword ? (
+                                <EyeSlashIcon size={20} color="#9CA3AF" />
+                            ) : (
+                                <EyeIcon size={20} color="#9CA3AF" />
+                            )}
+                        </TouchableOpacity>
+                    </View>
 
-                    <Input
-                        label="Confirm new password"
-                        placeholder="repeat password"
-                        value={confirmPassword}
-                        onChangeText={setConfirmPassword}
-                        secureTextEntry
-                    />
+                    <View>
+                        <Input
+                            label="Confirm new password"
+                            placeholder="repeat password"
+                            value={confirmPassword}
+                            onChangeText={setConfirmPassword}
+                            secureTextEntry={!showConfirmPassword}
+                            style={{ paddingRight: 40 }}
+                        />
+                        <TouchableOpacity
+                            onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                            style={styles.eyeIcon}
+                        >
+                            {showConfirmPassword ? (
+                                <EyeSlashIcon size={20} color="#9CA3AF" />
+                            ) : (
+                                <EyeIcon size={20} color="#9CA3AF" />
+                            )}
+                        </TouchableOpacity>
+                    </View>
 
                     <Button
                         title={loading ? "Resetting..." : "Reset Password"}
@@ -128,5 +157,10 @@ const styles = StyleSheet.create({
         fontFamily: Fonts.bold,
         fontSize: 14,
         color: Colors.light.text,
+    },
+    eyeIcon: {
+        position: 'absolute',
+        right: 12,
+        top: 38, // Aligned with input text
     },
 });

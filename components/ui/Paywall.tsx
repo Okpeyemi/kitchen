@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
         borderTopLeftRadius: 32,
         borderTopRightRadius: 32,
         padding: 24,
-        paddingBottom: 40,
+        paddingBottom: 80,
         gap: 16,
     },
     closeBtn: {
