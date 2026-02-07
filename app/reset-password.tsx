@@ -37,9 +37,8 @@ export default function ResetPasswordScreen() {
         setLoading(false);
 
         if (error) {
-            Alert.alert('Error', error.message);
-        } else {
-            router.replace('/(auth)/password-changed');
+            Alert.alert('Success', 'Password updated successfully');
+            router.replace('/(tabs)');
         }
     };
 

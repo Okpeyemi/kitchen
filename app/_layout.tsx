@@ -56,13 +56,18 @@ function RootLayoutNav() {
     if (loading) return;
 
     const inAuthGroup = segments[0] === '(auth)' || segments[0] === '(onboarding)';
+
+    // Check if we are specifically on the verify-code screen
+    // segments might be ['(auth)', 'verify-code']
+    const isVerifyCode = segments[0] === '(auth)' && segments[1] === 'verify-code';
     const inTabsGroup = segments[0] === '(tabs)';
 
     if (!session && !inAuthGroup) {
       // Redirect to sign-in if not authenticated and not already in auth/onboarding
       router.replace('/(auth)/sign-in');
-    } else if (session && inAuthGroup) {
+    } else if (session && inAuthGroup && !isVerifyCode) {
       // Redirect to tabs if authenticated and trying to access auth screens
+      // UNLESS we are on verify-code, which needs temporary session access for password reset
       router.replace('/(tabs)');
     }
   }, [session, loading, segments, loaded]);
@@ -90,6 +95,7 @@ function RootLayoutNav() {
         <Stack.Screen name="pdf-viewer" options={{ headerShown: false }} />
         <Stack.Screen name="profile" options={{ headerShown: false }} />
         <Stack.Screen name="subscription" options={{ headerShown: false }} />
+        <Stack.Screen name="reset-password" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
       <StatusBar style="dark" />

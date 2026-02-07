@@ -59,7 +59,7 @@ export default function VerifyCodeScreen() {
         } else {
             if (type === 'recovery') {
                 // User is now authenticated, redirect to reset password page
-                router.replace('/(auth)/reset-password');
+                router.replace('/reset-password');
             } else {
                 Alert.alert('Success', 'Account verified successfully!');
                 router.replace('/(tabs)');
