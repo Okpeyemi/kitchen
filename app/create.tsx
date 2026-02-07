@@ -1,8 +1,10 @@
 import { AddItemModal } from '@/components/create/AddItemModal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Paywall } from '@/components/ui/Paywall';
 import { Colors, Fonts } from '@/constants/theme';
 import { useAuth } from '@/ctx/AuthContext';
+import { useSubscription } from '@/hooks/useSubscription';
 import { analyzeRecipeImage } from '@/lib/gemini';
 import { supabase } from '@/lib/supabase';
 import { decode } from 'base64-arraybuffer';
@@ -65,6 +67,10 @@ export default function CreateRecipeScreen() {
     const [pdfUri, setPdfUri] = useState<string | null>(null);
     const [pdfName, setPdfName] = useState<string | null>(null);
 
+    // Subscription
+    const { checkQuota, checkPdfQuota, incrementQuota } = useSubscription();
+    const [paywallVisible, setPaywallVisible] = useState(false);
+
     // Fetch existing recipe for editing
     useEffect(() => {
         if (isEditMode && editId && user) {
@@ -121,6 +127,13 @@ export default function CreateRecipeScreen() {
 
     // Pick and analyze recipe image with AI
     const pickAndAnalyzeImage = async () => {
+        if (!user) return;
+        const canProceed = await checkQuota(user.id, 'ai');
+        if (!canProceed) {
+            setPaywallVisible(true);
+            return;
+        }
+
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: false,
@@ -149,6 +162,7 @@ export default function CreateRecipeScreen() {
                 // Switch to manual mode and show in view mode first
                 setCreationMode('manual');
                 setEditMode(false);
+                await incrementQuota(user.id, 'ai'); // Increment usage
                 Alert.alert('Success', 'Recipe extracted! Tap "Edit" to modify.');
             } catch (error: any) {
                 console.error('Error analyzing image:', error);
@@ -369,6 +383,16 @@ export default function CreateRecipeScreen() {
             return;
         }
 
+        // Check PDF Quota
+        const canUpload = await checkPdfQuota(user.id);
+        if (!canUpload) {
+            Alert.alert("Limit Reached", "You have reached the limit of 10 PDF books. Upgrade to Premium for unlimited storage.", [
+                { text: "Cancel", style: "cancel" },
+                { text: "Upgrade", onPress: () => setPaywallVisible(true) }
+            ]);
+            return;
+        }
+
         setLoading(true);
 
         try {
@@ -385,6 +409,7 @@ export default function CreateRecipeScreen() {
             if (error) throw error;
 
             Alert.alert('Success', 'Recipe book added successfully!');
+            await incrementQuota(user.id, 'pdf');
             router.replace('/(tabs)/recipes');
         } catch (e: any) {
             Alert.alert('Error', e.message);
@@ -703,6 +728,7 @@ export default function CreateRecipeScreen() {
                     </>
                 )}
             </ScrollView>
+            <Paywall visible={paywallVisible} onClose={() => setPaywallVisible(false)} />
         </SafeAreaView>
     );
 }

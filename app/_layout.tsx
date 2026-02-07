@@ -1,5 +1,6 @@
 import { Colors } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/ctx/AuthContext';
+import { SubscriptionProvider } from '@/ctx/SubscriptionContext';
 import { Montserrat_400Regular, Montserrat_500Medium, Montserrat_700Bold } from '@expo-google-fonts/montserrat';
 import { Outfit_400Regular, Outfit_700Bold, useFonts } from '@expo-google-fonts/outfit';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
@@ -88,6 +89,7 @@ function RootLayoutNav() {
         <Stack.Screen name="create" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="pdf-viewer" options={{ headerShown: false }} />
         <Stack.Screen name="profile" options={{ headerShown: false }} />
+        <Stack.Screen name="subscription" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
       <StatusBar style="dark" />
@@ -102,7 +104,9 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <RootLayoutNav />
+        <SubscriptionProvider>
+          <RootLayoutNav />
+        </SubscriptionProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

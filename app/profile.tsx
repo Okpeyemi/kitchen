@@ -7,13 +7,11 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback } from 'react';
 import { Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import {
-    ArrowLeftIcon,
     ArrowRightOnRectangleIcon,
     ChevronRightIcon,
     ClockIcon,
     CreditCardIcon,
     GlobeAltIcon,
-    PencilSquareIcon,
     TrashIcon
 } from 'react-native-heroicons/outline';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -62,7 +60,7 @@ export default function ProfileScreen() {
                 router.replace('/(auth)/sign-in'); // AuthProvider should handle this, but explicit is fine
             }
         } else if (id === 'subscription') {
-            router.push('/(auth)/choose-plan');
+            router.push('/subscription');
         } else if (id === 'language') {
             router.push('/(auth)/choose-language');
         }
@@ -90,7 +88,14 @@ export default function ProfileScreen() {
                             />
                         </View>
                         <View style={styles.userDetails}>
-                            <Text style={styles.userName}>{profile?.full_name || 'Chef'}</Text>
+                            <View style={styles.nameRow}>
+                                <Text style={styles.userName}>{profile?.full_name || 'Chef'}</Text>
+                                {profile?.subscription_tier === 'pro' && (
+                                    <View style={styles.proBadge}>
+                                        <Text style={styles.proBadgeText}>PRO</Text>
+                                    </View>
+                                )}
+                            </View>
                             <Text style={styles.userHandle}>{profile?.username ? `@${profile.username}` : '@chef'}</Text>
                         </View>
                         <TouchableOpacity style={styles.editButton}
@@ -232,5 +237,22 @@ const styles = StyleSheet.create({
     },
     destructiveLabel: {
         color: '#EF4444',
+    },
+    nameRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 4,
+    },
+    proBadge: {
+        backgroundColor: '#FCD34D',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 12,
+    },
+    proBadgeText: {
+        fontFamily: Fonts.bold,
+        fontSize: 10,
+        color: '#78350F',
     },
 });

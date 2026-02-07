@@ -1,6 +1,8 @@
 import { CustomHeader } from '@/components/ui/CustomHeader';
+import { Paywall } from '@/components/ui/Paywall';
 import { Colors, Fonts } from '@/constants/theme';
 import { useAuth } from '@/ctx/AuthContext';
+import { useSubscription } from '@/hooks/useSubscription';
 import { analyzeRecipeFromUrl, IngredientAnalysis } from '@/lib/gemini';
 import { getLinkPreview, LinkPreviewData } from '@/lib/link-preview';
 import { Image } from 'expo-image';
@@ -35,6 +37,10 @@ export default function FeedScreen() {
     const [isPreviewLoading, setIsPreviewLoading] = useState(false);
     const [activeTab, setActiveTab] = useState<'Ingredients' | 'Instructions'>('Ingredients');
 
+    // Subscription
+    const { checkQuota, incrementQuota } = useSubscription();
+    const [paywallVisible, setPaywallVisible] = useState(false);
+
     // Debounce Logic for Link Preview
     useEffect(() => {
         const timer = setTimeout(async () => {
@@ -56,6 +62,15 @@ export default function FeedScreen() {
     const handleAnalyze = async () => {
         if (!url.trim()) {
             Alert.alert('Error', 'Please enter a URL');
+            return;
+        }
+
+        if (!user) return;
+
+        // Check Quota
+        const canProceed = await checkQuota(user.id, 'scan');
+        if (!canProceed) {
+            setPaywallVisible(true);
             return;
         }
 
@@ -99,6 +114,9 @@ export default function FeedScreen() {
             if (user?.id) {
                 const analysis = await analyzeRecipeFromUrl(url, user.id, htmlContent);
                 setResult(analysis);
+                // Increment quota only on success if you want, or before. 
+                // Let's increment on successful analysis to be fair.
+                await incrementQuota(user.id, 'scan');
             } else {
                 Alert.alert('Error', 'User not authenticated');
             }
@@ -301,6 +319,8 @@ export default function FeedScreen() {
                     <View style={{ height: 100 }} />
                 </ScrollView>
             </View>
+
+            <Paywall visible={paywallVisible} onClose={() => setPaywallVisible(false)} />
         </SafeAreaView>
     );
 }
